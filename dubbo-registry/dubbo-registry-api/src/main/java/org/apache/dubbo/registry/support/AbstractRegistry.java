@@ -66,7 +66,14 @@ import static org.apache.dubbo.registry.Constants.REGISTRY_FILESAVE_SYNC_KEY;
 import static org.apache.dubbo.registry.Constants.REGISTRY__LOCAL_FILE_CACHE_ENABLED;
 
 /**
+ * 通用的注册、订阅、查询、通知等方法
+ * 持久化注册数据到文件，以 properties 格式存储。应用于，重启时，无法从注册中心加载服务提供者列表等信息时，从该文件中读取
  * AbstractRegistry. (SPI, Prototype, ThreadSafe)
+ *
+ *
+ * 从实现上，我们可以看出subscribe && unsubscribe register && unregister，
+ * 并未向注册中心发起注册，仅仅是添加到 registered 中，进行状态的维护。实际上，真正的实现在 FailbackRegistry 类中
+ *
  */
 public abstract class AbstractRegistry implements Registry {
 
@@ -112,6 +119,8 @@ public abstract class AbstractRegistry implements Registry {
             this.file = file;
             // When starting the subscription center,
             // we need to read the local cache file for future Registry fault tolerance processing.
+
+            // 加载本地磁盘缓存文件到内存缓存
             loadProperties();
             notify(url.getBackupUrls());
         }
@@ -287,6 +296,7 @@ public abstract class AbstractRegistry implements Registry {
         if (logger.isInfoEnabled()) {
             logger.info("Register: " + url);
         }
+
         registered.add(url);
     }
 
@@ -359,6 +369,11 @@ public abstract class AbstractRegistry implements Registry {
         }
     }
 
+    /**
+     * 第一，向注册中心发起订阅后，会获取到全量数据，此时会被调用 #notify(...) 方法，即 Registry 获取到了全量数据。
+     * 第二，每次注册中心发生变更时，会调用 #notify(...) 方法，虽然变化是增量，调用这个方法的调用方，已经进行处理，传入的 urls 依然是全量的。
+     * @param urls
+     */
     protected void notify(List<URL> urls) {
         if (CollectionUtils.isEmpty(urls)) {
             return;

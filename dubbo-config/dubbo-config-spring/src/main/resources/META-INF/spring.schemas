@@ -1,2 +1,4 @@
 http\://dubbo.apache.org/schema/dubbo/dubbo.xsd=META-INF/dubbo.xsd
 http\://code.alibabatech.com/schema/dubbo/dubbo.xsd=META-INF/compat/dubbo.xsd
+
+# 在解析XML文件时将XSD重定向到本地文件，避免在解析XML文件时需要上网下载XSD文件

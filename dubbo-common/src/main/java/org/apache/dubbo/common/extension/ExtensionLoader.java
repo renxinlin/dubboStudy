@@ -31,6 +31,8 @@ import org.apache.dubbo.common.utils.ConfigUtils;
 import org.apache.dubbo.common.utils.Holder;
 import org.apache.dubbo.common.utils.ReflectUtils;
 import org.apache.dubbo.common.utils.StringUtils;
+import org.apache.dubbo.config.ProtocolConfig;
+import org.apache.logging.log4j.core.net.Protocol;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -82,30 +84,107 @@ import static org.apache.dubbo.common.constants.CommonConstants.REMOVE_VALUE_PRE
 public class ExtensionLoader<T> {
 
     private static final Logger logger = LoggerFactory.getLogger(ExtensionLoader.class);
-
+    // 按照逗号分离
     private static final Pattern NAME_SEPARATOR = Pattern.compile("\\s*[,]+\\s*");
-
+    /**
+     12:  * 拓展加载器集合
+     13:  *
+     14:  * key：拓展接口
+     15:  */
     private static final ConcurrentMap<Class<?>, ExtensionLoader<?>> EXTENSION_LOADERS = new ConcurrentHashMap<>(64);
-
+    /**
+     18:  * 拓展实现类集合
+     19:  *
+     20:  * key：拓展实现类
+     21:  * value：拓展对象。
+     22:  *
+     23:  * 例如，key 为 Class<AccessLogFilter>
+     24:  *  value 为 AccessLogFilter 对象
+     25:  */
     private static final ConcurrentMap<Class<?>, Object> EXTENSION_INSTANCES = new ConcurrentHashMap<>(64);
-
+    /**
+     31:  * 拓展接口。
+     32:  * 例如，Protocol   Spring Complier cluster ProxyFactory Registerfactory
+     33:  */
     private final Class<?> type;
-
+    /**
+     36:  * 对象工厂
+     37:  *
+     38:  * 用于调用 {@link #injectExtension(Object)} 方法，向拓展对象注入依赖属性。
+     39:  *
+     40:  * 例如，StubProxyFactoryWrapper 中有 `Protocol protocol` 属性。
+     41:  */
     private final ExtensionFactory objectFactory;
-
+    /**
+     * 缓存的拓展名与拓展类的映射。
+     */
     private final ConcurrentMap<Class<?>, String> cachedNames = new ConcurrentHashMap<>();
-
+    /**
+     52:  * 缓存的拓展实现类集合。
+     53:  *
+     54:  * 不包含如下两种类型：
+     55:  *  1. 自适应拓展实现类。例如 AdaptiveExtensionFactory
+     56:  *  2. 带唯一参数为拓展接口的构造方法的实现类，或者说拓展 Wrapper 实现类。例如，ProtocolFilterWrapper 。
+     57:  *   拓展 Wrapper 实现类，会添加到 {@link #cachedWrapperClasses} 中
+     58:  *
+     59:  * 通过 {@link #loadExtensionClasses} 加载
+     60:  */
     private final Holder<Map<String, Class<?>>> cachedClasses = new Holder<>();
 
+ /**
+     64:  * 拓展名与 @Activate 的映射
+     65:  *
+     66:  * 例如，AccessLogFilter。
+     67:  *
+     68:  * 用于 {@link #getActivateExtension(URL, String)}
+     69:  */
     private final Map<String, Object> cachedActivates = new ConcurrentHashMap<>();
+    /**
+     72:  * 缓存的拓展对象集合
+     73:  *
+     74:  * key：拓展名
+     75:  * value：拓展对象
+     76:  *
+     77:  * 例如，Protocol 拓展
+     78:  *      key：dubbo value：DubboProtocol
+     79:  *      key：injvm value：InjvmProtocol
+     80:  *
+     81:  * 通过 {@link #loadExtensionClasses} 加载
+     82:  */
+
     private final ConcurrentMap<String, Holder<Object>> cachedInstances = new ConcurrentHashMap<>();
+    /**
+     85:  * 缓存的自适应( Adaptive )拓展对象
+     86:  */
     private final Holder<Object> cachedAdaptiveInstance = new Holder<>();
+    /**
+     89:  * 缓存的自适应拓展对象的类
+     90:  *
+     91:  * {@link #getAdaptiveExtensionClass()}
+     92:  */
     private volatile Class<?> cachedAdaptiveClass = null;
+    /**
+     95:  * 缓存的默认拓展名
+     96:  *
+     97:  * 通过 {@link SPI} 注解获得
+     98:  */
     private String cachedDefaultName;
+    /**
+     101:  * 创建 {@link #cachedAdaptiveInstance} 时发生的异常。
+     102:  *
+     103:  * 发生异常后，不再创建，参见 {@link #createAdaptiveExtension()}
+     104:  */
     private volatile Throwable createAdaptiveInstanceError;
 
     private Set<Class<?>> cachedWrapperClasses;
-
+    /**
+     117:  * 拓展名 与 加载对应拓展类发生的异常 的 映射
+     118:  *
+     119:  * key：拓展名
+     120:  * value：异常
+     121:  *
+     122:  * 在 @link #loadFile(Map, String) 时，记录
+     123:  */
     private Map<String, IllegalStateException> exceptions = new ConcurrentHashMap<>();
 
     private static volatile LoadingStrategy[] strategies = loadLoadingStrategies();
@@ -426,6 +505,7 @@ public class ExtensionLoader<T> {
             synchronized (holder) {
                 instance = holder.get();
                 if (instance == null) {
+                    // spi按照名称加载
                     instance = createExtension(name, wrap);
                     holder.set(instance);
                 }
@@ -625,6 +705,7 @@ public class ExtensionLoader<T> {
 
     @SuppressWarnings("unchecked")
     private T createExtension(String name, boolean wrap) {
+        // 按需加载进入jvm 获取所有的实现类后获取指定的classes
         Class<?> clazz = getExtensionClasses().get(name);
         if (clazz == null) {
             throw findException(name);
@@ -635,9 +716,10 @@ public class ExtensionLoader<T> {
                 EXTENSION_INSTANCES.putIfAbsent(clazz, clazz.newInstance());
                 instance = (T) EXTENSION_INSTANCES.get(clazz);
             }
+            // 完成ioc
             injectExtension(instance);
 
-
+            // 采用装饰者模式完成aop
             if (wrap) {
 
                 List<Class<?>> wrapperClassesList = new ArrayList<>();
@@ -646,6 +728,16 @@ public class ExtensionLoader<T> {
                     wrapperClassesList.sort(WrapperComparator.COMPARATOR);
                     Collections.reverse(wrapperClassesList);
                 }
+
+
+                // 完成wrapper类实例化 从而实现aop
+                /**
+                 * Wrapper 类同样实现了扩展点接口，但是 Wrapper 不是扩展点的真正实现。它的用途主要是用于从 ExtensionLoader 返回扩展点时，包装在真正的扩展点实现外。即从 ExtensionLoader 中返回的实际上是 Wrapper 类的实例，Wrapper 持有了实际的扩展点实现类。
+                 *
+                 * 扩展点的 Wrapper 类可以有多个，也可以根据需要新增。
+                 *
+                 * 通过 Wrapper 类可以把所有扩展点公共逻辑移至 Wrapper 中。新加的 Wrapper 在所有的扩展点上添加了逻辑，有些类似 AOP，即 Wrapper 代理了扩展点。
+                 */
 
                 if (CollectionUtils.isNotEmpty(wrapperClassesList)) {
                     for (Class<?> wrapperClass : wrapperClassesList) {
@@ -694,6 +786,7 @@ public class ExtensionLoader<T> {
 
                 try {
                     String property = getSetterProperty(method);
+                    // 通过spi注入或者spring注入 objectFactory也是自适应的
                     Object object = objectFactory.getExtension(pt, property);
                     if (object != null) {
                         method.invoke(instance, object);
@@ -751,6 +844,12 @@ public class ExtensionLoader<T> {
         return getExtensionClasses().get(name);
     }
 
+    /**
+     *
+     * #getExtensionClasses() 方法，获得拓展【type接口】实现类数组。
+     * 在loadclasses时候会决定是自适应 还是wrapper 还是普通的
+     * @return
+     */
     private Map<String, Class<?>> getExtensionClasses() {
         Map<String, Class<?>> classes = cachedClasses.get();
         if (classes == null) {
@@ -765,7 +864,9 @@ public class ExtensionLoader<T> {
         return classes;
     }
 
+
     /**
+     * 加载拓展实现类数组
      * synchronized in getExtensionClasses
      */
     private Map<String, Class<?>> loadExtensionClasses() {
@@ -774,6 +875,7 @@ public class ExtensionLoader<T> {
         Map<String, Class<?>> extensionClasses = new HashMap<>();
 
         for (LoadingStrategy strategy : strategies) {
+            // META-INF/services/ META-INF/dubbo/等等
             loadDirectory(extensionClasses, strategy.directory(), type.getName(), strategy.preferExtensionClassLoader(), strategy.overridden(), strategy.excludedPackages());
             loadDirectory(extensionClasses, strategy.directory(), type.getName().replace("org.apache", "com.alibaba"), strategy.preferExtensionClassLoader(), strategy.overridden(), strategy.excludedPackages());
         }
@@ -785,11 +887,27 @@ public class ExtensionLoader<T> {
      * extract and cache default extension name if exists
      */
     private void cacheDefaultExtensionName() {
+        // 每个拓展点的spi最多只能有一个名字
         final SPI defaultAnnotation = type.getAnnotation(SPI.class);
         if (defaultAnnotation == null) {
             return;
         }
-
+        // 默认的拓展实现类名
+        /**
+         *  org.apache.dubbo.rpc.cluster.LoadBalance
+         *
+         *
+         *  @SPI(RandomLoadBalance.NAME)
+         *  interface LoadBalance
+         *
+         *
+         *
+         *  random=org.apache.dubbo.rpc.cluster.loadbalance.RandomLoadBalance
+         * roundrobin=org.apache.dubbo.rpc.cluster.loadbalance.RoundRobinLoadBalance
+         * leastactive=org.apache.dubbo.rpc.cluster.loadbalance.LeastActiveLoadBalance
+         * consistenthash=org.apache.dubbo.rpc.cluster.loadbalance.ConsistentHashLoadBalance
+         * shortestresponse=org.ap ache.dubbo.rpc.cluster.loadbalance.ShortestResponseLoadBalance
+         */
         String value = defaultAnnotation.value();
         if ((value = value.trim()).length() > 0) {
             String[] names = NAME_SEPARATOR.split(value);
@@ -831,6 +949,10 @@ public class ExtensionLoader<T> {
             }
 
             if (urls != null) {
+                // 所有jar下的扩展点实例加载进来
+                /**
+                 * 比如 META-INF/dubbo/internal/org.apache.dubbo.rpc.cluster.LoadBalance
+                 */
                 while (urls.hasMoreElements()) {
                     java.net.URL resourceURL = urls.nextElement();
                     loadResource(extensionClasses, classLoader, resourceURL, overridden, excludedPackages);
@@ -848,6 +970,7 @@ public class ExtensionLoader<T> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(resourceURL.openStream(), StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
+                    // 跳过当前被注释掉的情况，例如 #spring=xxxxxxxxx
                     final int ci = line.indexOf('#');
                     if (ci >= 0) {
                         line = line.substring(0, ci);
@@ -887,6 +1010,8 @@ public class ExtensionLoader<T> {
         }
         return false;
     }
+
+
 
     private void loadClass(Map<String, Class<?>> extensionClasses, java.net.URL resourceURL, Class<?> clazz, String name,
                            boolean overridden) throws NoSuchMethodException {
@@ -1024,13 +1149,15 @@ public class ExtensionLoader<T> {
 
     private Class<?> getAdaptiveExtensionClass() {
         getExtensionClasses();
-        if (cachedAdaptiveClass != null) {
+        if (cachedAdaptiveClass != null) {// adaptive在；类上
             return cachedAdaptiveClass;
         }
+        //// adaptive在；方法上需要动态生成
         return cachedAdaptiveClass = createAdaptiveExtensionClass();
     }
 
     private Class<?> createAdaptiveExtensionClass() {
+        // 动态类源码生成
         String code = new AdaptiveClassCodeGenerator(type, cachedDefaultName).generate();
         ClassLoader classLoader = findClassLoader();
         org.apache.dubbo.common.compiler.Compiler compiler = ExtensionLoader.getExtensionLoader(org.apache.dubbo.common.compiler.Compiler.class).getAdaptiveExtension();

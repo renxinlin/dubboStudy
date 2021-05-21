@@ -25,9 +25,14 @@ import java.util.regex.Pattern;
  * Abstract compiler. (SPI, Prototype, ThreadSafe)
  */
 public abstract class AbstractCompiler implements Compiler {
-
+    /**
+     * 正则 - 包名
+     */
     private static final Pattern PACKAGE_PATTERN = Pattern.compile("package\\s+([$_a-zA-Z][$_a-zA-Z0-9\\.]*);");
 
+    /**
+     * 正则 - 类名
+     */
     private static final Pattern CLASS_PATTERN = Pattern.compile("class\\s+([$_a-zA-Z][$_a-zA-Z0-9]*)\\s+");
 
     @Override

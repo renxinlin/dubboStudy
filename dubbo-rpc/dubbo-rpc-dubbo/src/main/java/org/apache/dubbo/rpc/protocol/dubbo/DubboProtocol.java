@@ -282,6 +282,7 @@ public class DubboProtocol extends AbstractProtocol {
         URL url = invoker.getUrl();
 
         // export service.
+        // key = org.apache.dubbo.demo.DemoService:20880
         String key = serviceKey(url);
         DubboExporter<T> exporter = new DubboExporter<T>(invoker, key, exporterMap);
         exporterMap.put(key, exporter);
@@ -299,8 +300,9 @@ public class DubboProtocol extends AbstractProtocol {
 
             }
         }
-
+        // 启动服务器
         openServer(url);
+        // 初始化序列化优化器  序列号
         optimizeSerialization(url);
 
         return exporter;
@@ -312,6 +314,12 @@ public class DubboProtocol extends AbstractProtocol {
         //client can export a service which's only for server to invoke
         boolean isServer = url.getParameter(IS_SERVER_KEY, true);
         if (isServer) {
+            /**
+             * ：从 serverMap 获得对应服务器地址已存在的通信服务器。即，不重复创建。
+             * ：通信服务器不存在，调用 #createServer(url) 方法，创建服务器。
+             * 通信服务器已存在，调用 Server#reset(url) 方法，重置服务器的属性。
+             * 为什么会存在呢？因为键是 host:port ，那么例如，多个 Service 共用同一个 Protocol ，服务器是同一个对象。
+             */
             ProtocolServer server = serverMap.get(key);
             if (server == null) {
                 synchronized (this) {
@@ -328,6 +336,8 @@ public class DubboProtocol extends AbstractProtocol {
     }
 
     private ProtocolServer createServer(URL url) {
+        // 默认开启 Server 关闭时，发送 READ_ONLY 事件。
+        // 第 7 行：默认开启心跳功能。
         url = URLBuilder.from(url)
                 // send readonly event when server closes, it's enabled by default
                 .addParameterIfAbsent(CHANNEL_READONLYEVENT_SENT_KEY, Boolean.TRUE.toString())
@@ -341,13 +351,14 @@ public class DubboProtocol extends AbstractProtocol {
             throw new RpcException("Unsupported server type: " + str + ", url: " + url);
         }
 
+        // // 启动服务器
         ExchangeServer server;
         try {
             server = Exchangers.bind(url, requestHandler);
         } catch (RemotingException e) {
             throw new RpcException("Fail to start server(url: " + url + ") " + e.getMessage(), e);
         }
-
+        //  // 校验 Client 的 Dubbo SPI 拓展是否存在
         str = url.getParameter(CLIENT_KEY);
         if (str != null && str.length() > 0) {
             Set<String> supportedTypes = ExtensionLoader.getExtensionLoader(Transporter.class).getSupportedExtensions();
@@ -407,16 +418,21 @@ public class DubboProtocol extends AbstractProtocol {
         return invoker;
     }
 
+    /**
+     * 底层依赖 Netty 来进行网络通信，默认是共享连接
+     * @param url
+     * @return
+     */
     private ExchangeClient[] getClients(URL url) {
         // whether to share connection
 
         boolean useShareConnect = false;
-
+        // 获取连接数
         int connections = url.getParameter(CONNECTIONS_KEY, 0);
         List<ReferenceCountExchangeClient> shareClients = null;
         // if not configured, connection is shared, otherwise, one connection for one service
         if (connections == 0) {
-            useShareConnect = true;
+            useShareConnect = true; // 默认共享连接
 
             /*
              * The xml configuration should have a higher priority than properties.
@@ -430,9 +446,14 @@ public class DubboProtocol extends AbstractProtocol {
         ExchangeClient[] clients = new ExchangeClient[connections];
         for (int i = 0; i < clients.length; i++) {
             if (useShareConnect) {
+                /**
+                 * getSharedClient 我就不分析了，就是通过远程地址找 client ，这个 client 还有引用计数的功能，如果该远程地址还没有 client 则调用 initClient，我们就来看一下 initClient 方法
+                 */
                 clients[i] = shareClients.get(i);
 
             } else {
+
+                // 而这个connect最终返回 HeaderExchangeClient里面封装的是 NettyClient 。
                 clients[i] = initClient(url);
             }
         }

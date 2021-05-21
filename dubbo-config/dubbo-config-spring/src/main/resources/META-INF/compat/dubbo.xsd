@@ -9,6 +9,32 @@
     <xsd:import namespace="http://www.springframework.org/schema/beans" schemaLocation="http://www.springframework.org/schema/beans/spring-beans.xsd"/>
     <xsd:import namespace="http://www.springframework.org/schema/tool"/>
 
+
+
+    <!--
+
+
+
+
+元素	解释
+annotation	annotation 元素是一个顶层元素，规定 schema 的注释。
+appInfo	规定 annotation 元素中应用程序要使用的信息。
+attribute	定义一个属性。
+choice	仅允许在 <choice> 声明中包含一个元素出现在包含元素中。
+complexContent	定义对复杂类型（包含混合内容或仅包含元素）的扩展或限制。
+complexType	定义复杂类型。
+documentation	定义 schema 中的文本注释。
+element	定义元素。
+extension	扩展已有的 simpleType 或 complexType 元素。
+import	向一个文档添加带有不同目标命名空间的多个 schema。
+restriction	定义对 simpleType、simpleContent 或 complexContent 的约束。
+schema	定义 schema 的根元素。
+sequence	要求子元素必须按顺序出现。每个子元素可出现 0 到任意次数。
+
+
+
+
+    -->
     <xsd:annotation>
         <xsd:documentation>
             <![CDATA[ Namespace support for the dubbo services provided by dubbo framework. ]]></xsd:documentation>

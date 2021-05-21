@@ -3,12 +3,57 @@
             xmlns:beans="http://www.springframework.org/schema/beans"
             xmlns:tool="http://www.springframework.org/schema/tool"
             xmlns="http://dubbo.apache.org/schema/dubbo"
+
             targetNamespace="http://dubbo.apache.org/schema/dubbo">
+
+
+
+<!--    在xml中，定义了namespace，如果要验证xml文档的有效性，需要这些namespace相关的xsd文档。
+XML Schema Definition
+
+XML Schema功能概述:
+    定义可出现在文档中的元素
+    定义可出现在文档中的属性
+    定义哪个元素是子元素
+    定义子元素的次序
+    定义子元素的数目
+    定义元素是否为空，或者是否可包含文本
+    定义元素和属性的数据类型
+    定义元素和属性的默认值以及固定值
+
+
+xsd
+我需要用什么样的命名空间
+我的文件对应的命名空间在哪
+<schema> 元素是每一个 XML Schema 的根元素,可包含属性
+
+
+xmlns: 元素和数据类型来自命名空间 并且元素的前缀是什么
+targetNamespace : 改xsd中定义的元素来自什么命名空间
+
+
+xsd 教程
+simpleType: 定义一个简单类型, 用来规定和约束具有纯文本内容的元素(不含子元素即为具有纯文本内容的元素)或属性的值
+[mother fuck simple desc: 没有属性 没有子元素]   定义如下: <xs:element name="xxx" type="yyy"/>
+
+
+complexType: 概述: complexType 元素定义复杂类型。复杂类型的元素是包含其他元素和/或属性的 XML 元素。
+[mother fuck simple desc: 有属性或者子元素]
+
+simpleContent:
+
+complexContent:概述:complexContent 元素定义对复杂类型（包含混合内容或仅包含元素）的扩展或限制。
+
+
+
+
+-->
 
     <xsd:import namespace="http://www.w3.org/XML/1998/namespace"/>
     <xsd:import namespace="http://www.springframework.org/schema/beans"
                 schemaLocation="http://www.springframework.org/schema/beans/spring-beans.xsd"/>
     <xsd:import namespace="http://www.springframework.org/schema/tool"/>
+
 
     <xsd:annotation>
         <xsd:documentation>
@@ -1637,6 +1682,7 @@
 
     <xsd:element name="parameter" type="parameterType">
         <xsd:annotation>
+            <xsd:appinfo>![CDATA[ The service url parameter ]]</xsd:appinfo>
             <xsd:documentation><![CDATA[ The service url parameter ]]></xsd:documentation>
         </xsd:annotation>
     </xsd:element>
@@ -1651,5 +1697,8 @@
             </xsd:appinfo>
         </xsd:annotation>
     </xsd:element>
+
+
+
 
 </xsd:schema>

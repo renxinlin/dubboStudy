@@ -62,8 +62,10 @@ public class DubboNamespaceHandler extends NamespaceHandlerSupport implements Co
         registerBeanDefinitionParser("monitor", new DubboBeanDefinitionParser(MonitorConfig.class, true));
         registerBeanDefinitionParser("metrics", new DubboBeanDefinitionParser(MetricsConfig.class, true));
         registerBeanDefinitionParser("ssl", new DubboBeanDefinitionParser(SslConfig.class, true));
+
         registerBeanDefinitionParser("provider", new DubboBeanDefinitionParser(ProviderConfig.class, true));
         registerBeanDefinitionParser("consumer", new DubboBeanDefinitionParser(ConsumerConfig.class, true));
+
         registerBeanDefinitionParser("protocol", new DubboBeanDefinitionParser(ProtocolConfig.class, true));
         registerBeanDefinitionParser("service", new DubboBeanDefinitionParser(ServiceBean.class, true));
         registerBeanDefinitionParser("reference", new DubboBeanDefinitionParser(ReferenceBean.class, false));

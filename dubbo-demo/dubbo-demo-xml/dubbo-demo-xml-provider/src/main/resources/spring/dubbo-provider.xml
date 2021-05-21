@@ -18,18 +18,31 @@
 <beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
        xmlns="http://www.springframework.org/schema/beans"
-       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.3.xsd
-       http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd">
 
+
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.3.xsd
+       http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd"
+      >
+
+<!--  xmlns  我定义了哪些命名空间
+
+      schemaLocation 我需要从定义的命名空间中取出子集  并制定验证器的名称(网络url位置)用来决定 xml的约束验证
+  -->
     <dubbo:application metadata-type="remote" name="demo-provider"/>
-    <dubbo:metadata-report address="zookeeper://127.0.0.1:2181"/>
+<!--    <dubbo:metadata-report address="zookeeper://127.0.0.1:2181"/>-->
 
     <dubbo:registry address="zookeeper://127.0.0.1:2181"/>
+    <dubbo:service interface="org.apache.dubbo.demo.DemoService" ref="demoService" provider="pro"
 
+delay="1"
+    />
+    <dubbo:provider id="pro" delay="1" >
+    </dubbo:provider>
+<!--    // 默认的name不写就是dubbo-->
     <dubbo:protocol name="dubbo"/>
 
     <bean id="demoService" class="org.apache.dubbo.demo.provider.DemoServiceImpl"/>
 
-    <dubbo:service interface="org.apache.dubbo.demo.DemoService" ref="demoService"/>
-
+    
+    
 </beans>

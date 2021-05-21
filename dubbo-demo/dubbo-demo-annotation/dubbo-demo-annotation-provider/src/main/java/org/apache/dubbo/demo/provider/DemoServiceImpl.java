@@ -36,6 +36,11 @@ public class DemoServiceImpl implements DemoService {
     }
 
     @Override
+    public String $echo(String name) {
+        return "hi";
+    }
+
+    @Override
     public CompletableFuture<String> sayHelloAsync(String name) {
         return null;
     }

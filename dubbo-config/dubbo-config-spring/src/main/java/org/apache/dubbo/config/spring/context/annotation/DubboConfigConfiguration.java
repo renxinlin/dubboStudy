@@ -53,6 +53,7 @@ import org.springframework.context.annotation.Configuration;
 public class DubboConfigConfiguration {
 
     /**
+     * 会引入ConfigurationBeanBindingRegistrar 解析EnableConfigurationBeanBinding 内部配置 从而形成BeanDefinition
      * Single Dubbo {@link AbstractConfig Config} Bean Binding
      */
     @EnableConfigurationBeanBindings({

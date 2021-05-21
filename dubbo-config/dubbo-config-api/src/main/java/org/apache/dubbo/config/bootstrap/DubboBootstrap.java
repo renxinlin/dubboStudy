@@ -888,6 +888,8 @@ public class DubboBootstrap extends GenericEventListener {
     }
 
     /**
+     *
+     *  // @renxl2021-01 服务调用第一步
      * Start the bootstrap
      */
     public DubboBootstrap start() {
@@ -897,7 +899,7 @@ public class DubboBootstrap extends GenericEventListener {
             if (logger.isInfoEnabled()) {
                 logger.info(NAME + " is starting...");
             }
-            // 1. export Dubbo Services
+            // todo 001 1. export Dubbo Services
             exportServices();
 
             // Not only provider register
@@ -1087,11 +1089,12 @@ public class DubboBootstrap extends GenericEventListener {
     }
 
     private void exportServices() {
+//        configManager是在 spring加载bd 到new 的时候将sc 加入进来
         configManager.getServices().forEach(sc -> {
             // TODO, compatible with ServiceConfig.export()
             ServiceConfig serviceConfig = (ServiceConfig) sc;
             serviceConfig.setBootstrap(this);
-
+            // 异步还是同步
             if (exportAsync) {
                 ExecutorService executor = executorRepository.getServiceExporterExecutor();
                 Future<?> future = executor.submit(() -> {
@@ -1100,6 +1103,7 @@ public class DubboBootstrap extends GenericEventListener {
                 });
                 asyncExportingFutures.add(future);
             } else {
+                // sc就是所有的《dubbo: service
                 sc.export();
                 exportedServices.add(sc);
             }

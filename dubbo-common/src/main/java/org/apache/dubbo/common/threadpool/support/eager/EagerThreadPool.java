@@ -58,6 +58,7 @@ public class EagerThreadPool implements ThreadPool {
                 TimeUnit.MILLISECONDS,
                 taskQueue,
                 new NamedInternalThreadFactory(name, true),
+                // 每抑制10分钟对dump一次堆栈信息
                 new AbortPolicyWithReport(name, url));
         taskQueue.setExecutor(executor);
         return executor;

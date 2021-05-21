@@ -87,6 +87,18 @@ import static org.apache.dubbo.rpc.Constants.LOCAL_PROTOCOL;
 import static org.apache.dubbo.rpc.cluster.Constants.REFER_KEY;
 
 /**
+ *
+ *
+ * 消费者在spring中实例化的原理
+ * xml为例
+ * ReferenceBean 经过解析后进行加载 ReferenceBean是一个FactoryBean
+ *
+ *
+ * 将Reference的
+ *
+ *
+ *
+ *
  * Please avoid using this class for any new application,
  * use {@link ReferenceConfigBase} instead.
  */
@@ -301,7 +313,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
         map.put(REGISTER_IP_KEY, hostToRegistry);
 
         serviceMetadata.getAttachments().putAll(map);
-
+        // 构建完毕后map 创建代理
         ref = createProxy(map);
 
         serviceMetadata.setTarget(ref);
@@ -318,16 +330,27 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
         dispatch(new ReferenceConfigInitializedEvent(this, invoker));
     }
 
+    /**
+     * 该方法还会调用其他方法构建以及合并 Invoker 实例
+     * @param map
+     * @return
+     */
     @SuppressWarnings({"unchecked", "rawtypes", "deprecation"})
     private T createProxy(Map<String, String> map) {
+        // local
         if (shouldJvmRefer(map)) {
             URL url = new URL(LOCAL_PROTOCOL, LOCALHOST_VALUE, 0, interfaceClass.getName()).addParameters(map);
+            // 引用服务，返回 Invoker 对象
             invoker = REF_PROTOCOL.refer(interfaceClass, url);
             if (logger.isInfoEnabled()) {
                 logger.info("Using injvm service " + interfaceClass.getName());
             }
         } else {
+            // remote
             urls.clear();
+
+            /// 直连地址，可以是服务提供者的地址|也可以是服务暴露地址
+            // <dubbo:reference id="xxxService" interface="com.alibaba.xxx.XxxService" url="dubbo://localhost:20890" />
             if (url != null && url.length() > 0) { // user specified URL, could be peer-to-peer address, or register center's address.
                 String[] us = SEMICOLON_SPLIT_PATTERN.split(url);
                 if (us != null && us.length > 0) {
@@ -336,24 +359,33 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
                         if (StringUtils.isEmpty(url.getPath())) {
                             url = url.setPath(interfaceName);
                         }
+                        // 注册中心的地址，带上服务引用的配置参数
                         if (UrlUtils.isRegistry(url)) {
+                            // 注册中心的地址，带上服务引用的配置参数
                             urls.add(url.addParameterAndEncoded(REFER_KEY, StringUtils.toQueryString(map)));
                         } else {
+                             // 服务提供者的地址
                             urls.add(ClusterUtils.mergeUrl(url, map));
                         }
                     }
                 }
-            } else { // assemble URL from register center's configuration
+            } else {
+                // 注册中心 一般注册中心走这个
+                // assemble URL from register center's configuration
                 // if protocols not injvm checkRegistry
                 if (!LOCAL_PROTOCOL.equalsIgnoreCase(getProtocol())) {
                     checkRegistry();
+                    // 这里是获取RegisterConfig url 也就是注册中心地址
+//                    registry://dev.zk.mockuai.com:2181/com.alibaba.dubbo.registry.RegistryService?application=ec-shopcenter-web&dubbo=2.0.2&pid=35924&qos.enable=false&registry=zookeeper&timestamp=1612807797988
                     List<URL> us = ConfigValidationUtils.loadRegistries(this, false);
                     if (CollectionUtils.isNotEmpty(us)) {
+                        //
                         for (URL u : us) {
                             URL monitorUrl = ConfigValidationUtils.loadMonitor(this, u);
                             if (monitorUrl != null) {
                                 map.put(MONITOR_KEY, URL.encode(monitorUrl.toFullString()));
                             }
+                            // 来自于多注册中心ConfigValidationUtils.loadRegistries
                             urls.add(u.addParameterAndEncoded(REFER_KEY, StringUtils.toQueryString(map)));
                         }
                     }
@@ -362,13 +394,18 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
                     }
                 }
             }
-
+            // urls
+            // registry://dev.zk.mockuai.com:2181/com.alibaba.dubbo.registry.RegistryService?application=ec-shopcenter-web&dubbo=2.0.2&pid=36236&qos.enable=false&registry=zookeeper&timestamp=1612808152907
             if (urls.size() == 1) {
+                // 调用 RegistryProtocol 的 refer 构建 Invoker 实例
                 invoker = REF_PROTOCOL.refer(interfaceClass, urls.get(0));
             } else {
+                // 如果有多个地址则构建成StaticDirectory
                 List<Invoker<?>> invokers = new ArrayList<Invoker<?>>();
                 URL registryURL = null;
                 for (URL url : urls) {
+                    // 通过 refprotocol 调用 refer 构建 Invoker，refprotocol 会在运行时
+                    // 根据 url 协议头加载指定的 Protocol 实例，并调用实例的 refer 方法
                     invokers.add(REF_PROTOCOL.refer(interfaceClass, url));
                     if (UrlUtils.isRegistry(url)) {
                         registryURL = url; // use last registry url
@@ -376,6 +413,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
                 }
                 if (registryURL != null) { // registry url is available
                     // for multi-subscription scenario, use 'zone-aware' policy by default
+                    // 对有注册中心的 Cluster 只用 AvailableCluster
                     String cluster = registryURL.getParameter(CLUSTER_KEY, ZoneAwareCluster.NAME);
                     // The invoker wrap sequence would be: ZoneAwareClusterInvoker(StaticDirectory) -> FailoverClusterInvoker(RegistryDirectory, routing happens here) -> Invoker
                     invoker = Cluster.getCluster(cluster, false).join(new StaticDirectory(registryURL, invokers));
@@ -383,6 +421,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
                     String cluster = CollectionUtils.isNotEmpty(invokers)
                             ? (invokers.get(0).getUrl() != null ? invokers.get(0).getUrl().getParameter(CLUSTER_KEY, ZoneAwareCluster.NAME) : Cluster.DEFAULT)
                             : Cluster.DEFAULT;
+                    // 无注册中心
                     invoker = Cluster.getCluster(cluster).join(new StaticDirectory(invokers));
                 }
             }

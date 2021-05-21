@@ -130,6 +130,7 @@ public class ServiceClassPostProcessor implements BeanDefinitionRegistryPostProc
 
         Set<String> resolvedPackagesToScan = resolvePackagesToScan(packagesToScan);
 
+        // <2> 扫描 packagesToScan 包，创建对应的 Spring BeanDefinition 对象，从而创建 Dubbo Service Bean 对象。
         if (!CollectionUtils.isEmpty(resolvedPackagesToScan)) {
             registerServiceBeans(resolvedPackagesToScan, registry);
         } else {
@@ -147,28 +148,30 @@ public class ServiceClassPostProcessor implements BeanDefinitionRegistryPostProc
      * @param registry       {@link BeanDefinitionRegistry}
      */
     private void registerServiceBeans(Set<String> packagesToScan, BeanDefinitionRegistry registry) {
-
+        // <1.1> 创建 DubboClassPathBeanDefinitionScanner 对象
         DubboClassPathBeanDefinitionScanner scanner =
                 new DubboClassPathBeanDefinitionScanner(registry, environment, resourceLoader);
-
+        // <1.2> 获得 BeanNameGenerator 对象，并设置 beanNameGenerator 到 scanner 中
         BeanNameGenerator beanNameGenerator = resolveBeanNameGenerator(registry);
 
         scanner.setBeanNameGenerator(beanNameGenerator);
 
         // refactor @since 2.7.7
+        // <1.3> 设置过滤获得带有 @Service 注解的类
         serviceAnnotationTypes.forEach(annotationType -> {
             scanner.addIncludeFilter(new AnnotationTypeFilter(annotationType));
         });
-
+        // <2> 遍历 packagesToScan 数组
         for (String packageToScan : packagesToScan) {
 
             // Registers @Service Bean first
+            // <2.1> 执行扫描
             scanner.scan(packageToScan);
-
+            // <2.2> 创建每个在 packageToScan 扫描到的类，对应的 BeanDefinitionHolder 对象，返回 BeanDefinitionHolder 集合
             // Finds all BeanDefinitionHolders of @Service whether @ComponentScan scans or not.
             Set<BeanDefinitionHolder> beanDefinitionHolders =
                     findServiceBeanDefinitionHolders(scanner, packageToScan, registry, beanNameGenerator);
-
+            // <2.3> 注册到 registry 中
             if (!CollectionUtils.isEmpty(beanDefinitionHolders)) {
 
                 for (BeanDefinitionHolder beanDefinitionHolder : beanDefinitionHolders) {
@@ -275,6 +278,7 @@ public class ServiceClassPostProcessor implements BeanDefinitionRegistryPostProc
      */
     private void registerServiceBean(BeanDefinitionHolder beanDefinitionHolder, BeanDefinitionRegistry registry,
                                      DubboClassPathBeanDefinitionScanner scanner) {
+        // <1.1> 解析 Bean 的类
 
         Class<?> beanClass = resolveClass(beanDefinitionHolder);
 

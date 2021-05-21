@@ -89,6 +89,18 @@ import static org.apache.dubbo.rpc.cluster.Constants.ROUTER_KEY;
 
 
 /**
+ *
+ * 刷新 Invoker 列表核心流程:
+ *
+ * 检测入参是否仅包含一个 url，且 url 协议头为 empty
+ * 若第一步检测结果为 true，表示禁用所有服务，此时销毁所有的 Invoker
+ * 若第一步检测结果为 false，此时将入参转为 Invoker 列表
+ * 对上一步逻辑生成的结果进行进一步处理，得到方法名到 Invoker 的映射关系表
+ * 合并多组 Invoker
+ * 销毁无用 Invoker
+ *
+ *
+ *
  * RegistryDirectory
  */
 public class RegistryDirectory<T> extends AbstractDirectory<T> implements NotifyListener {
@@ -125,6 +137,20 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
 
     // Map<url, Invoker> cache service url to invoker mapping.
     private volatile Map<String, Invoker<T>> urlInvokerMap; // The initial value is null and the midway may be assigned to null, please use the local variable reference
+    /**
+     * 服务目录中存储了一些和服务提供者有关的信息，通过服务目录，服务消费者可获取到服务提供者的信息，比如 ip、端口、服务协议等。
+     * 通过这些信息，服务消费者就可通过 Netty 等客户端进行远程调用。
+     * 在一个服务集群中，服务提供者数量并不是一成不变的，如果集群中新增了一台机器，相应地在服务目录中就要新增一条服务提供者记录。
+     * 或者，如果服务提供者的配置修改了，服务目录中的记录也要做相应的更新。
+     *
+     *
+     *
+     * 实际上服务目录在获取注册中心的服务配置信息后，会为每条配置信息生成一个 Invoker 对象，
+     * 并把这个 Invoker 对象存储起来，这个 Invoker 才是服务目录最终持有的对象。
+     * Invoker 有什么用呢？看名字就知道了，这是一个具有远程调用功能的对象。
+     * 它可以看做是 Invoker 集合，且这个集合中的元素会随注册中心的变化而进行动态调整。
+     *
+     */
     private volatile List<Invoker<T>> invokers;
 
     // Set<invokerUrls> cache invokeUrls to invokers mapping.
@@ -133,7 +159,15 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
     private static final ConsumerConfigurationListener CONSUMER_CONFIGURATION_LISTENER = new ConsumerConfigurationListener();
     private ReferenceConfigurationListener serviceConfigurationListener;
 
-
+    /**
+     *
+     * 公司有1亿市值 = 每股1元*1亿股
+     * 假设开盘价1.01元 = 1.01亿
+     *
+     *
+     * @param serviceType
+     * @param url
+     */
     public RegistryDirectory(Class<T> serviceType, URL url) {
         super(url);
         if (serviceType == null) {
@@ -225,6 +259,10 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
         }
     }
 
+    /**
+     * 包含了所有的提供者信息
+     * @param urls The list of registered information , is always not empty. The meaning is the same as the return value of {@link org.apache.dubbo.registry.RegistryService#lookup(URL)}.
+     */
     @Override
     public synchronized void notify(List<URL> urls) {
         Map<String, List<URL>> categoryUrls = urls.stream()
@@ -286,7 +324,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
     // TODO: 2017/8/31 FIXME The thread pool should be used to refresh the address, otherwise the task may be accumulated.
     private void refreshInvoker(List<URL> invokerUrls) {
         Assert.notNull(invokerUrls, "invokerUrls should not be null");
-
+        // empty协议表示禁用所有的服务提供者
         if (invokerUrls.size() == 1
                 && invokerUrls.get(0) != null
                 && EMPTY_PROTOCOL.equals(invokerUrls.get(0).getProtocol())) {

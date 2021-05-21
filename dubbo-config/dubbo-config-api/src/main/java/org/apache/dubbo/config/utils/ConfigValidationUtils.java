@@ -169,7 +169,9 @@ public class ConfigValidationUtils {
     public static List<URL> loadRegistries(AbstractInterfaceConfig interfaceConfig, boolean provider) {
         // check && override if necessary
         List<URL> registryList = new ArrayList<URL>();
+        // 应用配置
         ApplicationConfig application = interfaceConfig.getApplication();
+        // provider和consumer 接口注册中心配置
         List<RegistryConfig> registries = interfaceConfig.getRegistries();
         if (CollectionUtils.isNotEmpty(registries)) {
             for (RegistryConfig config : registries) {
@@ -177,24 +179,32 @@ public class ConfigValidationUtils {
                 if (StringUtils.isEmpty(address)) {
                     address = ANYHOST_VALUE;
                 }
+//                "N/A" 代表不配置注册中心
                 if (!RegistryConfig.NO_AVAILABLE.equalsIgnoreCase(address)) {
+                    // 添加 `path` `dubbo` `timestamp` `pid` 到 `map` 集合中。
                     Map<String, String> map = new HashMap<String, String>();
                     AbstractConfig.appendParameters(map, application);
                     AbstractConfig.appendParameters(map, config);
                     map.put(PATH_KEY, RegistryService.class.getName());
                     AbstractInterfaceConfig.appendRuntimeParameters(map);
+                    // 默认的协议为dubbo协议
                     if (!map.containsKey(PROTOCOL_KEY)) {
                         map.put(PROTOCOL_KEY, DUBBO_PROTOCOL);
                     }
+                    // address有逗号隔离则会产生多个urls,同时拥有相同的Parameters
                     List<URL> urls = UrlUtils.parseURLs(address, map);
 
                     for (URL url : urls) {
 
                         url = URLBuilder.from(url)
+                                // 参数registry一般为zookeeper
                                 .addParameter(REGISTRY_KEY, url.getProtocol())
+                                // Protocol属性一般为register
                                 .setProtocol(extractRegistryType(url))
                                 .build();
+                        // 服务提供者 [只订阅不注册不添加]
                         if ((provider && url.getParameter(REGISTER_KEY, true))
+                                // 若是服务消费者 【只注册不订阅不添加】
                                 || (!provider && url.getParameter(SUBSCRIBE_KEY, true))) {
                             registryList.add(url);
                         }

@@ -49,9 +49,11 @@ public abstract class AbstractRegistryFactory implements RegistryFactory {
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractRegistryFactory.class);
 
     // The lock for the acquisition process of the registry
+//    LOCK 静态属性，锁，用于 #destroyAll() 和 #getRegistry(url) 方法，对 REGISTRIES 访问的竞争。
     protected static final ReentrantLock LOCK = new ReentrantLock();
 
     // Registry Collection Map<RegistryAddress, Registry>
+    // REGISTRIES 静态属性，Registry 集合。
     protected static final Map<String, Registry> REGISTRIES = new HashMap<>();
 
     private static final AtomicBoolean destroyed = new AtomicBoolean(false);

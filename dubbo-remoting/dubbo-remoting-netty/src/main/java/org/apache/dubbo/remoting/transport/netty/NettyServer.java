@@ -37,6 +37,7 @@ import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.jboss.netty.handler.timeout.ReadTimeoutHandler;
 
 import java.net.InetSocketAddress;
 import java.util.Collection;
@@ -96,7 +97,7 @@ public class NettyServer extends AbstractServer implements RemotingServer {
             }
         });
         // bind
-        channel = bootstrap.bind(getBindAddress());
+        this.channel = bootstrap.bind(getBindAddress());
     }
 
     @Override

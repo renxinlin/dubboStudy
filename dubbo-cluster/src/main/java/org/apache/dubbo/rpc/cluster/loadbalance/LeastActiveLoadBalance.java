@@ -25,6 +25,16 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
+ *
+ *
+ *
+ *LeastActiveLoadBalance 基于加权最小活跃数算法实现的
+ *
+ *    LeastActiveLoadBalance: 翻译过来是最小活跃数负载均衡。活跃调用数越小，表明该服务提供者效率越高，单位时间内可处理更多的请求。
+ *    初始情况下，所有服务提供者活跃数均为0。每收到一个请求，活跃数加1，完成请求后则将活跃数减1
+ *
+ *    LeastActiveLoadBalance 在实现上还引入了权重值
+ *
  * LeastActiveLoadBalance
  * <p>
  * Filter the number of invokers with the least number of active calls and count the weights and quantities of these invokers.

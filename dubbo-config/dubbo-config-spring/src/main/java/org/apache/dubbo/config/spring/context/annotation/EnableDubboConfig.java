@@ -70,6 +70,8 @@ import java.lang.annotation.Target;
 public @interface EnableDubboConfig {
 
     /**
+     *
+     * 决定注册bean的方式
      * It indicates whether binding to multiple Spring Beans.
      *
      * @return the default value is <code>true</code>

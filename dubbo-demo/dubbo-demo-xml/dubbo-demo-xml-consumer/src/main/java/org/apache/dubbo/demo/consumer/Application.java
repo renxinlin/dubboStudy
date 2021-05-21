@@ -18,6 +18,7 @@ package org.apache.dubbo.demo.consumer;
 
 import org.apache.dubbo.demo.DemoService;
 
+import org.apache.dubbo.rpc.service.EchoService;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
 
 import java.util.concurrent.CompletableFuture;
@@ -31,7 +32,11 @@ public class Application {
         ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("spring/dubbo-consumer.xml");
         context.start();
         DemoService demoService = context.getBean("demoService", DemoService.class);
+        EchoService echoService = (EchoService) demoService; // 强制转型为EchoService
+        final Object kanjdjask = echoService.$echo("kanjdjask");
         CompletableFuture<String> hello = demoService.sayHelloAsync("world");
         System.out.println("result: " + hello.get());
+        String hi = demoService.sayHello("hi");
+        System.out.println(hi);
     }
 }

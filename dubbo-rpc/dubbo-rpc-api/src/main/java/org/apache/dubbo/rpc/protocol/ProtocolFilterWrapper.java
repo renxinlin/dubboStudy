@@ -31,6 +31,7 @@ import org.apache.dubbo.rpc.ProtocolServer;
 import org.apache.dubbo.rpc.Result;
 import org.apache.dubbo.rpc.RpcException;
 
+import java.nio.channels.SocketChannel;
 import java.util.List;
 
 import static org.apache.dubbo.common.constants.CommonConstants.REFERENCE_FILTER_KEY;
@@ -51,6 +52,14 @@ public class ProtocolFilterWrapper implements Protocol {
         this.protocol = protocol;
     }
 
+    /**
+     *
+     * @param invoker
+     * @param key  指定spi对于的url key
+     * @param group 消费者还是提供者 等
+     * @param <T>
+     * @return
+     */
     private static <T> Invoker<T> buildInvokerChain(final Invoker<T> invoker, String key, String group) {
         Invoker<T> last = invoker;
         List<Filter> filters = ExtensionLoader.getExtensionLoader(Filter.class).getActivateExtension(invoker.getUrl(), key, group);
@@ -75,7 +84,7 @@ public class ProtocolFilterWrapper implements Protocol {
                     public boolean isAvailable() {
                         return invoker.isAvailable();
                     }
-
+                    // 服务调用阶段
                     @Override
                     public Result invoke(Invocation invocation) throws RpcException {
                         Result asyncResult;
@@ -147,8 +156,21 @@ public class ProtocolFilterWrapper implements Protocol {
         return protocol.getDefaultPort();
     }
 
+    /**
+     *
+     * 远程暴露执行顺序
+     * Protocol$Adaptive => ProtocolFilterWrapper => ProtocolListenerWrapper => RegistryProtocol
+     * =>
+     * Protocol$Adaptive => ProtocolFilterWrapper => ProtocolListenerWrapper => DubboProtocol
+     * 为什么是这样的顺序？ 答案: 在本地服务器启动完成后，再向注册中心注册
+     * @param invoker Service invoker
+     * @param <T>
+     * @return
+     * @throws RpcException
+     */
     @Override
     public <T> Exporter<T> export(Invoker<T> invoker) throws RpcException {
+        //invoker.url.protocl = registry ，注册中心的 URL ，无需创建 Filter 过滤链
         if (UrlUtils.isRegistry(invoker.getUrl())) {
             return protocol.export(invoker);
         }

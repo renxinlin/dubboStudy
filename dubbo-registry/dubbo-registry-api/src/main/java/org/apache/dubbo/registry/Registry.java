@@ -21,11 +21,12 @@ import org.apache.dubbo.common.URL;
 
 /**
  * Registry. (SPI, Prototype, ThreadSafe)
- *
+ * com.alibaba.dubbo.common.Node 接口，拥有节点相关的方法。
  * @see org.apache.dubbo.registry.RegistryFactory#getRegistry(URL)
  * @see org.apache.dubbo.registry.support.AbstractRegistry
  */
 public interface Registry extends Node, RegistryService {
+
     default void reExportRegister(URL url) {
         register(url);
     }

@@ -17,6 +17,8 @@
 package org.apache.dubbo.rpc.protocol;
 
 import org.apache.dubbo.common.URL;
+import org.apache.dubbo.common.extension.Adaptive;
+import org.apache.dubbo.common.extension.ExtensionLoader;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
 import org.apache.dubbo.common.utils.ConcurrentHashSet;
@@ -43,6 +45,11 @@ import static org.apache.dubbo.common.constants.CommonConstants.VERSION_KEY;
  * abstract ProtocolSupport.
  */
 public abstract class AbstractProtocol implements Protocol {
+    public static void main(String[] args) {
+        boolean annotationPresent = Protocol.class.isAnnotationPresent(Adaptive.class);
+        System.out.println(annotationPresent);
+    }
+
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 

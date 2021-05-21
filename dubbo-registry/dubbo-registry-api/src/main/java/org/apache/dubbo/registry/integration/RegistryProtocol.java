@@ -132,8 +132,11 @@ public class RegistryProtocol implements Protocol {
     private final ProviderConfigurationListener providerConfigurationListener = new ProviderConfigurationListener();
     //To solve the problem of RMI repeated exposure port conflicts, the services that have been exposed are no longer exposed.
     //providerurl <--> exporter
+    // 用于解决rmi重复暴露端口冲突的问题，已经暴露过的服务不再重新暴露
     private final ConcurrentMap<String, ExporterChangeableWrapper<?>> bounds = new ConcurrentHashMap<>();
+    // protocol  这里一般还是自适应实现
     private Protocol protocol;
+    //   这里一般还是自适应实现
     private RegistryFactory registryFactory;
     private ProxyFactory proxyFactory;
 
@@ -188,8 +191,13 @@ public class RegistryProtocol implements Protocol {
 
     @Override
     public <T> Exporter<T> export(final Invoker<T> originInvoker) throws RpcException {
+        // 获得注册中心 URL
+        // zookeeper://127.0.0.1:2181/org.apache.dubbo.registry.RegistryService?application=demo-provider&dubbo=2.0.2
+        // &export=dubbo://192.168.111.223:20880/org.apache.dubbo.demo.DemoService?anyhost=true&application=demo-provider&bind.ip=192.168.111.223&bind.port=20880&delay=1&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=org.apache.dubbo.demo.DemoService&metadata-type=remote&methods=sayHello,sayHelloAsync&pid=19409&qos.port=22222&release=&side=provider&timestamp=1612529550788&metadata-type=remote&pid=19409&qos.port=22222&timestamp=1612529545776
         URL registryUrl = getRegistryUrl(originInvoker);
         // url to export locally
+        // 获得服务提供者 URL
+        //         dubbo://192.168.111.223:20880/org.apache.dubbo.demo.DemoService?anyhost=true&application=demo-provider&bind.ip=192.168.111.223&bind.port=20880&delay=1&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=org.apache.dubbo.demo.DemoService&metadata-type=remote&methods=sayHello,sayHelloAsync&pid=19409&qos.port=22222&release=&side=provider&timestamp=1612529550788
         URL providerUrl = getProviderUrl(originInvoker);
 
         // Subscribe the override data
@@ -197,20 +205,25 @@ public class RegistryProtocol implements Protocol {
         //  the same service. Because the subscribed is cached key with the name of the service, it causes the
         //  subscription information to cover.
         final URL overrideSubscribeUrl = getSubscribedOverrideUrl(providerUrl);
+        // 使用 OverrideListener 对象，订阅配置规则
         final OverrideListener overrideSubscribeListener = new OverrideListener(overrideSubscribeUrl, originInvoker);
         overrideListeners.put(overrideSubscribeUrl, overrideSubscribeListener);
-
         providerUrl = overrideUrlWithConfig(providerUrl, overrideSubscribeListener);
+
         //export invoker
+        //  // step-1: 暴露服务
         final ExporterChangeableWrapper<T> exporter = doLocalExport(originInvoker, providerUrl);
 
         // url to registry
         final Registry registry = getRegistry(originInvoker);
+        // 移除provider url中不需要的key  这个在provider中并不提供功能
         final URL registeredProviderUrl = getUrlToRegistry(providerUrl, registryUrl);
 
         // decide if we need to delay publish
         boolean register = providerUrl.getParameter(REGISTER_KEY, true);
         if (register) {
+            // // step-2: 向注册中心注册服务提供者（自己）
+            // 第一步获取注册中心实例，第二步是向注册中心注册服务
             register(registryUrl, registeredProviderUrl);
         }
 
@@ -220,7 +233,7 @@ public class RegistryProtocol implements Protocol {
 
         exporter.setRegisterUrl(registeredProviderUrl);
         exporter.setSubscribeUrl(overrideSubscribeUrl);
-
+        // step-3: 订阅 override 数据
         // Deprecated! Subscribe to override rules in 2.6.x or before.
         registry.subscribe(overrideSubscribeUrl, overrideSubscribeListener);
 
@@ -248,10 +261,14 @@ public class RegistryProtocol implements Protocol {
 
     @SuppressWarnings("unchecked")
     private <T> ExporterChangeableWrapper<T> doLocalExport(final Invoker<T> originInvoker, URL providerUrl) {
+        // // 获得在 `bounds` 中的缓存 Key
         String key = getCacheKey(originInvoker);
-
+        // 从 `bounds` 获得，是不是已经暴露过服务
         return (ExporterChangeableWrapper<T>) bounds.computeIfAbsent(key, s -> {
+            // 创建 Invoker Delegate 对象
             Invoker<?> invokerDelegate = new InvokerDelegate<>(originInvoker, providerUrl);
+            // 暴露服务，创建 Exporter 对象
+            // 使用 创建的Exporter对象 + originInvoker ，创建 ExporterChangeableWrapper 对象 [DubboProtocol#export(invoker)]
             return new ExporterChangeableWrapper<>((Exporter<T>) protocol.export(invokerDelegate), originInvoker);
         });
     }
@@ -432,10 +449,19 @@ public class RegistryProtocol implements Protocol {
         return key;
     }
 
+    /**
+     *
+     * @param type Service class
+     * @param url zookeeper://dev.zk.mockuai.com:2181/com.alibaba.dubbo.registry.RegistryService?application=ec-shopcenter-web&dubbo=2.0.2&pid=36236&qos.enable=false&refer=application=ec-shopcenter-web&default.check=false&default.cluster=failfast&default.timeout=3000&default.validation=true&dubbo=2.0.2&interface=com.mockuai.ec.usercenter.common.api.AuthorityService&methods=listRole,listAdminInterfacePermission,listGuestUserWithPwd,deleteMenuById,listUserAuthorityMenu,updateRole,addMenu,getRole,listMenu,listGuestUser,deleteRole,getGuestUser,updateGuestUser,updateMenu,addGuestUser,getGuestUserWithPwd,getMenu,deleteGuestUser,checkUserAuth,listGuestUserWithAuthUrl,addRole&pid=36236&qos.enable=false&register.ip=192.168.2.115&revision=1.0.4&side=consumer&timestamp=1612808139933&timestamp=1612808152907
+     * @param <T> 消费者接口名
+     * @return
+     * @throws RpcException
+     */
     @Override
     @SuppressWarnings("unchecked")
     public <T> Invoker<T> refer(Class<T> type, URL url) throws RpcException {
         url = getRegistryUrl(url);
+        // 根据url获取注册中心 比如zookeeper注册中心[其内部持有与zk server交互的client对象]
         Registry registry = registryFactory.getRegistry(url);
         if (RegistryService.class.equals(type)) {
             return proxyFactory.getInvoker((T) registry, type, url);
@@ -444,36 +470,65 @@ public class RegistryProtocol implements Protocol {
         // group="a,b" or group="*"
         Map<String, String> qs = StringUtils.parseQueryString(url.getParameterAndDecoded(REFER_KEY));
         String group = qs.get(GROUP_KEY);
+        // 多个组
         if (group != null && group.length() > 0) {
             if ((COMMA_SPLIT_PATTERN.split(group)).length > 1 || "*".equals(group)) {
                 return doRefer(Cluster.getCluster(MergeableCluster.NAME), registry, type, url);
             }
         }
-
+        // 一个组
         Cluster cluster = Cluster.getCluster(qs.get(CLUSTER_KEY));
         return doRefer(cluster, registry, type, url);
     }
 
+    /**
+     *
+     * @param cluster  集群信息
+     * @param registry 注册中心客户端
+     * @param type     消费者接口
+     * @param url      url
+     * @param <T>
+     * @return
+     */
     private <T> Invoker<T> doRefer(Cluster cluster, Registry registry, Class<T> type, URL url) {
+        // 创建 RegistryDirectory 对象，并设置注册中心  RegistryDirectory自身也实现了NotifyListener 接口，因此注册中心的监听其实是靠这家伙来处理
         RegistryDirectory<T> directory = new RegistryDirectory<T>(type, url);
         directory.setRegistry(registry);
         directory.setProtocol(protocol);
         // all attributes of REFER_KEY
+        // 创建订阅 URL
         Map<String, String> parameters = new HashMap<String, String>(directory.getConsumerUrl().getParameters());
         URL subscribeUrl = new URL(CONSUMER_PROTOCOL, parameters.remove(REGISTER_IP_KEY), 0, type.getName(), parameters);
+        // 向注册中心注册自己（服务消费者）
         if (directory.isShouldRegister()) {
             directory.setRegisteredConsumerUrl(subscribeUrl);
+            /**
+             * 在zk consumers目录下创建新节点
+             * consumer://192.168.2.115/com.mockuai.ec.usercenter.common.api.AuthorityService?application=ec-shopcenter-web&category=consumers&check=false&default.check=false&default.cluster=failfast&default.timeout=3000&default.validation=true&dubbo=2.0.2
+             * &interface=com.mockuai.ec.usercenter.common.api.AuthorityService&methods=listRole,listAdminInterfacePermission,addRole&pid=36236&qos.enable=false&revision=1.0.4&side=consumer&timestamp=1612808139933
+             * */
             registry.register(directory.getRegisteredConsumerUrl());
         }
         directory.buildRouterChain(subscribeUrl);
+        //   订阅zk 的providers configurators目录和router目录变更
+//        consumer://192.168.2.115/com.mockuai.ec.usercenter.common.api.AuthorityService?application=ec-shopcenter-web&category=providers,configurators,routers&default.check=false&default.cluster=failfast&default.timeout=3000&default.validation=true&dubbo=2.0.2
+//        &interface=com.mockuai.ec.usercenter.common.api.AuthorityService&methods=listRole,listAdminInterfacePermission,listGuestUserWithPwd,deleteMenuById,listUserAuthorityMenu,updateRole,addMenu,getRole,listMenu,listGuestUser,deleteRole,getGuestUser,updateGuestUser,updateMenu,addGuestUser,getGuestUserWithPwd,getMenu,deleteGuestUser,checkUserAuth,listGuestUserWithAuthUrl,addRole&pid=36236&qos.enable=false&revision=1.0.4&side=consumer&timestamp=1612808139933
+
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////
+        ////////////////////////////////////
+        //     // 订阅 providers、configurators、routers 等节点数据 notify 会重新刷新provider 调用dubboProtocol
+        ////////////////////////////////////////////////////////////////////////////////////////////////
         directory.subscribe(toSubscribeUrl(subscribeUrl));
 
+        // 创建 Invoker 对象
+        //     // 一个注册中心可能有多个服务提供者，因此这里需要将多个服务提供者合并为一个
         Invoker<T> invoker = cluster.join(directory);
         List<RegistryProtocolListener> listeners = findRegistryProtocolListeners(url);
         if (CollectionUtils.isEmpty(listeners)) {
             return invoker;
         }
-
+        // 路由 集群
         RegistryInvokerWrapper<T> registryInvokerWrapper = new RegistryInvokerWrapper<>(directory, cluster, invoker);
         for (RegistryProtocolListener listener : listeners) {
             listener.onRefer(this, registryInvokerWrapper);
@@ -726,6 +781,7 @@ public class RegistryProtocol implements Protocol {
     }
 
     /**
+     * 建立【返回的 Exporter】与【Protocol export 出的 Exporter】的对应关系。
      * exporter proxy, establish the corresponding relationship between the returned exporter and the exporter
      * exported by the protocol, and can modify the relationship at the time of override.
      *

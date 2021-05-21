@@ -1,2 +1,4 @@
 http\://dubbo.apache.org/schema/dubbo=org.apache.dubbo.config.spring.schema.DubboNamespaceHandler
 http\://code.alibabatech.com/schema/dubbo=org.apache.dubbo.config.spring.schema.DubboNamespaceHandler
+
+# spring 使用 指定namespace对应的handler 在spring refresh过程中调用parse解析BD

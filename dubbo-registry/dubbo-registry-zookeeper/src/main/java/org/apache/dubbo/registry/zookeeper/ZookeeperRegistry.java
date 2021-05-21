@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
 
 import static org.apache.dubbo.common.constants.CommonConstants.ANY_VALUE;
 import static org.apache.dubbo.common.constants.CommonConstants.GROUP_KEY;
@@ -68,7 +69,15 @@ public class ZookeeperRegistry extends FailbackRegistry {
     private final String root;
 
     private final Set<String> anyServices = new ConcurrentHashSet<>();
-
+    /**
+     * 建立 NotifyListener 和 ChildListener 的映射关系 todo
+     *
+     *
+     *
+     *
+     *
+     *
+     */
     private final ConcurrentMap<URL, ConcurrentMap<NotifyListener, ChildListener>> zkListeners = new ConcurrentHashMap<>();
 
     private final ZookeeperClient zkClient;
@@ -144,14 +153,18 @@ public class ZookeeperRegistry extends FailbackRegistry {
     @Override
     public void doSubscribe(final URL url, final NotifyListener listener) {
         try {
+            // 处理所有 Service 层的发起订阅，例如监控中心的订阅
             if (ANY_VALUE.equals(url.getServiceInterface())) {
                 String root = toRootPath();
                 ConcurrentMap<NotifyListener, ChildListener> listeners = zkListeners.computeIfAbsent(url, k -> new ConcurrentHashMap<>());
+
                 ChildListener zkListener = listeners.computeIfAbsent(listener, k -> (parentPath, currentChilds) -> {
                     for (String child : currentChilds) {
                         child = URL.decode(child);
                         if (!anyServices.contains(child)) {
                             anyServices.add(child);
+                            // 新增 Service 接口全名时（即新增服务），发起该 Service 层的订阅
+
                             subscribe(url.setPath(child).addParameters(INTERFACE_KEY, child,
                                     Constants.CHECK_KEY, String.valueOf(false)), k);
                         }
@@ -168,16 +181,33 @@ public class ZookeeperRegistry extends FailbackRegistry {
                     }
                 }
             } else {
+                // 处理指定 Service 层的发起订阅，例如服务消费者的订阅
                 List<URL> urls = new ArrayList<>();
                 for (String path : toCategoriesPath(url)) {
-                    ConcurrentMap<NotifyListener, ChildListener> listeners = zkListeners.computeIfAbsent(url, k -> new ConcurrentHashMap<>());
-                    ChildListener zkListener = listeners.computeIfAbsent(listener, k -> (parentPath, currentChilds) -> ZookeeperRegistry.this.notify(url, k, toUrlsWithEmpty(url, parentPath, currentChilds)));
+                    // 不存在则加入
+                    ConcurrentMap<NotifyListener, ChildListener> listeners = zkListeners.computeIfAbsent(url, k -> {
+                        return new ConcurrentHashMap<>();
+                    });
+                    //
+                    ChildListener zkListener = listeners.computeIfAbsent(listener, new Function<NotifyListener, ChildListener>() {
+                        @Override
+                        public ChildListener apply(NotifyListener k) {
+                            // 变更时，调用 `#notify(...)` 方法，回调 NotifyListener
+                            return new ChildListener() {
+                                @Override
+                                public void childChanged(String parentPath, List<String> currentChilds) {
+                                    ZookeeperRegistry.this.notify(url, k, ZookeeperRegistry.this.toUrlsWithEmpty(url, parentPath, currentChilds));
+                                }
+                            };
+                        }
+                    });
                     zkClient.create(path, false);
                     List<String> children = zkClient.addChildListener(path, zkListener);
                     if (children != null) {
                         urls.addAll(toUrlsWithEmpty(url, path, children));
                     }
                 }
+                // 首次全量数据获取完成时，调用 `#notify(...)` 方法，回调 NotifyListener
                 notify(url, listener, urls);
             }
         } catch (Throwable e) {
@@ -203,6 +233,13 @@ public class ZookeeperRegistry extends FailbackRegistry {
         }
     }
 
+    /**
+     * 查询符合条件的已注册数据，与订阅的推模式相对应，这里为拉模式，只返回一次结果。
+     *
+     * @param url 查询条件，不允许为空，如：consumer://10.20.153.10/com.alibaba.foo.BarService?version=1.0.0&application=kylin
+     * @return 已注册信息列表，可能为空，含义同{@link com.alibaba.dubbo.registry.NotifyListener#notify(List<URL>)}的参数。
+     * @see com.alibaba.dubbo.registry.NotifyListener#notify(List)
+     */
     @Override
     public List<URL> lookup(URL url) {
         if (url == null) {

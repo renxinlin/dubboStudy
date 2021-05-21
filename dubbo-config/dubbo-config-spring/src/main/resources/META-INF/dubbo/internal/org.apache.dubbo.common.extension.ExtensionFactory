@@ -1,1 +1,3 @@
-spring=org.apache.dubbo.config.spring.extension.SpringExtensionFactory
+spring1=org.apache.dubbo.config.spring.extension.SpringExtensionFactory
+spring2=org.apache.dubbo.config.spring.extension.FailOver
+spring3=org.apache.dubbo.config.spring.extension.SpringExtensionFactory
