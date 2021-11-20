@@ -492,6 +492,7 @@ public class RegistryProtocol implements Protocol {
      */
     private <T> Invoker<T> doRefer(Cluster cluster, Registry registry, Class<T> type, URL url) {
         // 创建 RegistryDirectory 对象，并设置注册中心  RegistryDirectory自身也实现了NotifyListener 接口，因此注册中心的监听其实是靠这家伙来处理
+        // 并且需要注意Invoker包含了 RegistryDirectory ,也就是说Invoker具备了监听zk的能力
         RegistryDirectory<T> directory = new RegistryDirectory<T>(type, url);
         directory.setRegistry(registry);
         directory.setProtocol(protocol);
@@ -519,6 +520,7 @@ public class RegistryProtocol implements Protocol {
         ////////////////////////////////////
         //     // 订阅 providers、configurators、routers 等节点数据 notify 会重新刷新provider 调用dubboProtocol
         ////////////////////////////////////////////////////////////////////////////////////////////////
+        // 该directory 内部含有dubboInvoker 对象
         directory.subscribe(toSubscribeUrl(subscribeUrl));
 
         // 创建 Invoker 对象

@@ -54,7 +54,7 @@ public abstract class AbstractRegistryFactory implements RegistryFactory {
 
     // Registry Collection Map<RegistryAddress, Registry>
     // REGISTRIES 静态属性，Registry 集合。
-    protected static final Map<String, Registry> REGISTRIES = new HashMap<>();
+    protected static final Map<String/* key：{@link URL#toServiceString()} */, Registry> REGISTRIES = new HashMap<>();
 
     private static final AtomicBoolean destroyed = new AtomicBoolean(false);
 

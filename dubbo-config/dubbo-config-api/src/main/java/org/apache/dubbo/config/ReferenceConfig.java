@@ -253,7 +253,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
 
         checkStubAndLocal(interfaceClass);
         ConfigValidationUtils.checkMock(interfaceClass, this);
-
+        // step-1: 构建url的key-val对应map
         Map<String, String> map = new HashMap<String, String>();
         map.put(SIDE_KEY, CONSUMER_SIDE);
 
@@ -313,7 +313,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
         map.put(REGISTER_IP_KEY, hostToRegistry);
 
         serviceMetadata.getAttachments().putAll(map);
-        // 构建完毕后map 创建代理
+        // step-2: 构建完毕后map 创建代理
         ref = createProxy(map);
 
         serviceMetadata.setTarget(ref);
@@ -340,7 +340,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
         // local
         if (shouldJvmRefer(map)) {
             URL url = new URL(LOCAL_PROTOCOL, LOCALHOST_VALUE, 0, interfaceClass.getName()).addParameters(map);
-            // 引用服务，返回 Invoker 对象
+            // 引用服务，返回 Invoker 对象  InJvmProtocol 构建本地Invoker
             invoker = REF_PROTOCOL.refer(interfaceClass, url);
             if (logger.isInfoEnabled()) {
                 logger.info("Using injvm service " + interfaceClass.getName());
@@ -403,6 +403,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
                 // 如果有多个地址则构建成StaticDirectory
                 List<Invoker<?>> invokers = new ArrayList<Invoker<?>>();
                 URL registryURL = null;
+                // 可能存在多注册中心的情况
                 for (URL url : urls) {
                     // 通过 refprotocol 调用 refer 构建 Invoker，refprotocol 会在运行时
                     // 根据 url 协议头加载指定的 Protocol 实例，并调用实例的 refer 方法
@@ -440,7 +441,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
             URL consumerURL = new URL(CONSUMER_PROTOCOL, map.remove(REGISTER_IP_KEY), 0, map.get(INTERFACE_KEY), map);
             metadataService.publishServiceDefinition(consumerURL);
         }
-        // create service proxy
+        // create service proxy  invoker包含了相应的接口根据接口进行生成代理对象
         return (T) PROXY_FACTORY.getProxy(invoker, ProtocolUtils.isGeneric(generic));
     }
 
@@ -533,6 +534,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
                 isJvmRefer = false;
             } else {
                 // by default, reference local service if there is
+                // 如何配置scope则判断相关配置，如果没有相关配置 去看dubbo提供者有没有在exporterMap中暴露相关exportor
                 isJvmRefer = InjvmProtocol.getInjvmProtocol().isInjvmRefer(tmpUrl);
             }
         } else {

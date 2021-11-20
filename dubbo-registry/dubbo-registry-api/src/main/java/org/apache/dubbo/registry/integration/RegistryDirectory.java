@@ -289,6 +289,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
                 providerURLs = addressListener.notify(providerURLs, getConsumerUrl(),this);
             }
         }
+        // 刷新提供者信息
         refreshOverrideAndInvoker(providerURLs);
     }
 
@@ -306,6 +307,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
     private void refreshOverrideAndInvoker(List<URL> urls) {
         // mock zookeeper://xxx?mock=return null
         overrideDirectoryUrl();
+        // 刷新提供者信息 调用dubboProtocol.refer
         refreshInvoker(urls);
     }
 
@@ -347,6 +349,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
             if (invokerUrls.isEmpty()) {
                 return;
             }
+            // 根据zk的监听变化调用dubboProtocol.refer 构建 新的Invokers
             Map<String, Invoker<T>> newUrlInvokerMap = toInvokers(invokerUrls);// Translate url list to Invoker map
 
             /**
@@ -490,6 +493,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
                         enabled = url.getParameter(ENABLED_KEY, true);
                     }
                     if (enabled) {
+                        // 构建dubbo invoker  dubboprotocol  其中dubboInvoker含有 数据转换ExchangeClient 以及通信层对象
                         invoker = new InvokerDelegate<>(protocol.refer(serviceType, url), url, providerUrl);
                     }
                 } catch (Throwable t) {
