@@ -60,8 +60,11 @@ public class ShortestResponseLoadBalance extends AbstractLoadBalance {
             Invoker<T> invoker = invokers.get(i);
             RpcStatus rpcStatus = RpcStatus.getStatus(invoker.getUrl(), invocation.getMethodName());
             // Calculate the estimated response time from the product of active connections and succeeded average elapsed time.
+            // 每个请求成功时响应的平均时间 [每个请求开始有个时间戳 结束时的时间减去开始时间加入rpcStatus]
             long succeededAverageElapsed = rpcStatus.getSucceededAverageElapsed();
+            // 获取当前在活跃调用的请求数量
             int active = rpcStatus.getActive();
+            //平均请求时间*活跃数表示最小响应时间
             long estimateResponse = succeededAverageElapsed * active;
             int afterWarmup = getWeight(invoker, invocation);
             weights[i] = afterWarmup;
@@ -82,9 +85,11 @@ public class ShortestResponseLoadBalance extends AbstractLoadBalance {
                 }
             }
         }
+        // 最短响应时间相同的Invoker只有一个
         if (shortestCount == 1) {
             return invokers.get(shortestIndexes[0]);
         }
+        // 最短响应时间相同的Invoker有多个,且存在权重不同 加权获取
         if (!sameWeight && totalWeight > 0) {
             int offsetWeight = ThreadLocalRandom.current().nextInt(totalWeight);
             for (int i = 0; i < shortestCount; i++) {
@@ -95,6 +100,7 @@ public class ShortestResponseLoadBalance extends AbstractLoadBalance {
                 }
             }
         }
+        // 最短响应时间相同的Invoker有多个,且权重相同 随机获取
         return invokers.get(shortestIndexes[ThreadLocalRandom.current().nextInt(shortestCount)]);
     }
 }

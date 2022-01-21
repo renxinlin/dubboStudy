@@ -80,12 +80,15 @@ public class FailbackClusterInvoker<T> extends AbstractClusterInvoker<T> {
                     failTimer = new HashedWheelTimer(
                             new NamedThreadFactory("failback-cluster-timer", true),
                             1,
-                            TimeUnit.SECONDS, 32, failbackTasks);
+                            TimeUnit.SECONDS, 32, failbackTasks /* 100 */);
                 }
             }
         }
+        // 前面4个参数是dubbo重试的源信息   后面两个参数retries表示默认重试3次 每次重试间隔5秒
+        // 重试三次外加自己执行的一次一共dubbo调用4次
         RetryTimerTask retryTimerTask = new RetryTimerTask(loadbalance, invocation, invokers, lastInvoker, retries, RETRY_FAILED_PERIOD);
         try {
+            // 五秒之后执行错误
             failTimer.newTimeout(retryTimerTask, RETRY_FAILED_PERIOD, TimeUnit.SECONDS);
         } catch (Throwable e) {
             logger.error("Failback background works error,invocation->" + invocation + ", exception: " + e.getMessage());
@@ -132,6 +135,7 @@ public class FailbackClusterInvoker<T> extends AbstractClusterInvoker<T> {
             this.invocation = invocation;
             this.invokers = invokers;
             this.retries = retries;
+            // 表示延迟几个时间滴答| 几个时间单位 | dubbo默认一个tick为1秒 所以这里默认就是延迟几秒在执行
             this.tick = tick;
             this.lastInvoker=lastInvoker;
         }

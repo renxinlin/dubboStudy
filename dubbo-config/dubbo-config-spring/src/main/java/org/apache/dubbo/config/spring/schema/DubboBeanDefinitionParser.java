@@ -86,7 +86,8 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
         String id = resolveAttribute(element, "id", parserContext);
         // 解析 Bean 的 id 。若不存在，则自动进行生成
         if (StringUtils.isEmpty(id) && required) {
-            // 生成 id 。规则为 name > 特殊规则 > className 。
+            // 生成 id 。规则为 name > 特殊规则 > className
+            // 一般情况下我们生成的id就是包名+接口类名
             String generatedBeanName = resolveAttribute(element, "name", parserContext);
             if (StringUtils.isEmpty(generatedBeanName)) {
                 if (ProtocolConfig.class.equals(beanClass)) {

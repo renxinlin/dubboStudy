@@ -55,15 +55,17 @@ public abstract class AbstractProtocol implements Protocol {
 
     /**
      *  dubbo provider-service url构成建 对应的Invoker封装的exporter构成val
+     *
      */
-    protected final Map<String, Exporter<?>> exporterMap = new ConcurrentHashMap<String, Exporter<?>>();
+    protected final Map<String /*  key = org.apache.dubbo.demo.DemoService:20880[远程]或者  key = org.apache.dubbo.demo.DemoService[本地]*/, Exporter<?>>
+            exporterMap = new ConcurrentHashMap<String, Exporter<?>>();
 
     /**
      * <host:port, ProtocolServer>
      */
     protected final Map<String, ProtocolServer> serverMap = new ConcurrentHashMap<>();
 
-    //TODO SoftReference
+    //TODO SoftReference 消费者Invoker集合
     protected final Set<Invoker<?>> invokers = new ConcurrentHashSet<Invoker<?>>();
 
     protected static String serviceKey(URL url) {

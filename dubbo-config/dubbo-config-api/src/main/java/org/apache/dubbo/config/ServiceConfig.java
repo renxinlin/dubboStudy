@@ -322,7 +322,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         // 加载注册中心 URL 数组 用于远程暴露使用【registryURLs有多少 取决于配置多少<dubbo:registry />】
         // 远程暴露根据该url进行服务注册
         List<URL> registryURLs = ConfigValidationUtils.loadRegistries(this, true);
-        // 循环 `protocols` ，向注册中心分组暴露服务。
+        // 循环 如dubbo,grpc 等`protocols` ，向注册中心分组暴露服务。
         for (ProtocolConfig protocolConfig : protocols) {
             /**
              * 包含了本地和远程两种暴露方式。

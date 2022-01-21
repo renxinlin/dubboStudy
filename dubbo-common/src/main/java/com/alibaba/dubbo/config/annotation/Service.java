@@ -102,6 +102,7 @@ public @interface Service {
     String[] filter() default {};
 
     String[] listener() default {};
+    // ---------------------------------------------
 
     String[] parameters() default {};
 

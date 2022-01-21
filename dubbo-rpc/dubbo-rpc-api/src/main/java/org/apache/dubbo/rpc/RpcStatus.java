@@ -277,10 +277,12 @@ public class RpcStatus {
      * @return succeeded average elapsed
      */
     public long getSucceededAverageElapsed() {
+        // 该方法总成功请求数量
         long succeeded = getSucceeded();
         if (succeeded == 0) {
             return 0;
         }
+        // 该方法总成功请求毫秒时间
         return getSucceededElapsed() / succeeded;
     }
 

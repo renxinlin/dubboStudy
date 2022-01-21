@@ -65,11 +65,28 @@ public class ExchangeCodec extends TelnetCodec {
 
     @Override
     public void encode(Channel channel, ChannelBuffer buffer, Object msg) throws IOException {
+        /*
+         msg = {Request@18527} "Request [id=8, version=2.0.2, twoway=true, event=false, broken=false, data=RpcInvocation [methodName=getChannelList, parameterTypes=[class java.lang.Long, class java.lang.String], arguments=[12345, 1], attachments={path=com.mockuai.ec.labelcenter.client.service.ChannelLabelService, remote.application=ec-omscenter-admin, dubboApplication=ec-omscenter-admin, interface=com.mockuai.ec.labelcenter.client.service.ChannelLabelService, version=0.0.0, timeout=3000}]]"
+         mId = 8
+         mVersion = "2.0.2"
+         mTwoWay = true
+         mEvent = false
+         mBroken = false
+         mData = {RpcInvocation@18502} "RpcInvocation [methodName=getChannelList, parameterTypes=[class java.lang.Long, class java.lang.String], arguments=[12345, 1], attachments={path=com.mockuai.ec.labelcenter.client.service.ChannelLabelService, remote.application=ec-omscenter-admin, dubboApplication=ec-omscenter-admin, interface=com.mockuai.ec.labelcenter.client.service.ChannelLabelService, version=0.0.0, timeout=3000}]"
+          methodName = "getChannelList"
+          parameterTypes = {Class[2]@19396}
+          arguments = {Object[2]@18496}
+          attachments = {HashMap@19397}  size = 6
+          invoker = {DubboInvoker@17456} "interface com.mockuai.ec.labelcenter.client.service.ChannelLabelService -> dubbo://127.0.0.1:18778/com.mockuai.ec.labelcenter.client.service.ChannelLabelService?application=ec-omscenter-admin&check=false&cluster=failfast&interface=com.mockuai.ec.labelcenter.client.service.ChannelLabelService&lazy=false&pid=63878&qos.enable=false&register.ip=192.168.2.103&remote.application=&revision=1.2.4&side=consumer&sticky=false&timeout=3000"
+          returnType = {Class@17994} "interface com.mockuai.framework.helper.Response"
+          invokeMode = {InvokeMode@19398} "SYNC"
+         */
         if (msg instanceof Request) {
             encodeRequest(channel, buffer, (Request) msg);
         } else if (msg instanceof Response) {
             encodeResponse(channel, buffer, (Response) msg);
         } else {
+            // 除去dubbo 应用rpc外 还支持 Telnet rpc
             super.encode(channel, buffer, msg);
         }
     }
@@ -85,6 +102,8 @@ public class ExchangeCodec extends TelnetCodec {
     @Override
     protected Object decode(Channel channel, ChannelBuffer buffer, int readable, byte[] header) throws IOException {
         // check magic number.
+
+        // 解码消息头
         if (readable > 0 && header[0] != MAGIC_HIGH
                 || readable > 1 && header[1] != MAGIC_LOW) {
             int length = header.length;
@@ -99,6 +118,7 @@ public class ExchangeCodec extends TelnetCodec {
                     break;
                 }
             }
+            // 主要用于解析header  比如telnet
             return super.decode(channel, buffer, readable, header);
         }
         // check length.
@@ -110,6 +130,7 @@ public class ExchangeCodec extends TelnetCodec {
         int len = Bytes.bytes2int(header, 12);
         checkPayload(channel, len);
 
+        // 判断分包数据是否存在完整的包了
         int tt = len + HEADER_LENGTH;
         if (readable < tt) {
             return DecodeResult.NEED_MORE_INPUT;
@@ -119,6 +140,7 @@ public class ExchangeCodec extends TelnetCodec {
         ChannelBufferInputStream is = new ChannelBufferInputStream(buffer, len);
 
         try {
+            // 解码得到rpcInvocation
             return decodeBody(channel, is, header);
         } finally {
             if (is.available() > 0) {
@@ -126,6 +148,7 @@ public class ExchangeCodec extends TelnetCodec {
                     if (logger.isWarnEnabled()) {
                         logger.warn("Skip input stream " + is.available());
                     }
+                    // 出现异常清空剩余数据
                     StreamUtils.skipUnusedStream(is);
                 } catch (IOException e) {
                     logger.warn(e.getMessage(), e);
@@ -208,13 +231,14 @@ public class ExchangeCodec extends TelnetCodec {
     }
 
     protected void encodeRequest(Channel channel, ChannelBuffer buffer, Request req) throws IOException {
-        Serialization serialization = getSerialization(channel);
+        Serialization serialization = getSerialization(channel);// 获取相关序列化器
+        // step-1: 编码消息头
         // header.
         byte[] header = new byte[HEADER_LENGTH];
         // set magic number.
         Bytes.short2bytes(MAGIC, header);
 
-        // set request and serialization flag.
+        // set request and serialization flag. 第三个字节 请求标志[请求还是响应] + 序列化类型
         header[2] = (byte) (FLAG_REQUEST | serialization.getContentTypeId());
 
         if (req.isTwoWay()) {
@@ -228,22 +252,27 @@ public class ExchangeCodec extends TelnetCodec {
         Bytes.long2bytes(req.getId(), header, 4);
 
         // encode request data.
+        // step-2: 消息体与消息头分隔16个字节
         int savedWriteIndex = buffer.writerIndex();
         buffer.writerIndex(savedWriteIndex + HEADER_LENGTH);
+        // step-3:  编码消息体
         ChannelBufferOutputStream bos = new ChannelBufferOutputStream(buffer);
         ObjectOutput out = serialization.serialize(channel.getUrl(), bos);
         if (req.isEvent()) {
             encodeEventData(channel, out, req.getData());
         } else {
+            // data 一般是rpcInvocation
             encodeRequestData(channel, out, req.getData(), req.getVersion());
         }
         out.flushBuffer();
         if (out instanceof Cleanable) {
             ((Cleanable) out).cleanup();
         }
+        // step-4: 资源释放
         bos.flush();
         bos.close();
         int len = bos.writtenBytes();
+        // 检查是否超过8M大小
         checkPayload(channel, len);
         Bytes.int2bytes(len, header, 12);
 

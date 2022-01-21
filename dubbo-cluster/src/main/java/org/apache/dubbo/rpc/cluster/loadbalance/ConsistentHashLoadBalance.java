@@ -53,45 +53,57 @@ public class ConsistentHashLoadBalance extends AbstractLoadBalance {
     @SuppressWarnings("unchecked")
     @Override
     protected <T> Invoker<T> doSelect(List<Invoker<T>> invokers, URL url, Invocation invocation) {
+        // 获取接口与方法名
         String methodName = RpcUtils.getMethodName(invocation);
         String key = invokers.get(0).getUrl().getServiceKey() + "." + methodName;
-        // using the hashcode of list to compute the hash only pay attention to the elements in the list
+        // 每一个方法一个一致性hash选择器
         int invokersHashCode = invokers.hashCode();
         ConsistentHashSelector<T> selector = (ConsistentHashSelector<T>) selectors.get(key);
         if (selector == null || selector.identityHashCode != invokersHashCode) {
             selectors.put(key, new ConsistentHashSelector<T>(invokers, methodName, invokersHashCode));
             selector = (ConsistentHashSelector<T>) selectors.get(key);
         }
+        // 通过选择器选择一个Invoker
         return selector.select(invocation);
     }
 
     private static final class ConsistentHashSelector<T> {
 
-        private final TreeMap<Long, Invoker<T>> virtualInvokers;
+        private final TreeMap<Long, Invoker<T>> virtualInvokers; // 虚拟结点
 
-        private final int replicaNumber;
+        private final int replicaNumber;  // 副本数
 
         private final int identityHashCode;
 
         private final int[] argumentIndex;
 
         ConsistentHashSelector(List<Invoker<T>> invokers, String methodName, int identityHashCode) {
+
             this.virtualInvokers = new TreeMap<Long, Invoker<T>>();
+            // 生成调用结点HashCode
             this.identityHashCode = identityHashCode;
             URL url = invokers.get(0).getUrl();
+
+            // 获取方法配置的结点数，默认160
             this.replicaNumber = url.getMethodParameter(methodName, HASH_NODES, 160);
-            String[] index = COMMA_SPLIT_PATTERN.split(url.getMethodParameter(methodName, HASH_ARGUMENTS, "0"));
+            // 获取需要进行hash的参数数组索引，默认对第一个参数进行
+            String methodParameter = url.getMethodParameter(methodName, HASH_ARGUMENTS, "0");
+            String[] index = COMMA_SPLIT_PATTERN.split(methodParameter); // {'0'}
+
             argumentIndex = new int[index.length];
             for (int i = 0; i < index.length; i++) {
                 argumentIndex[i] = Integer.parseInt(index[i]);
             }
-            for (Invoker<T> invoker : invokers) {
+
+            for (Invoker<T> invoker : invokers) { // 每个Invoker构建40*4个虚拟节点
                 String address = invoker.getUrl().getAddress();
-                for (int i = 0; i < replicaNumber / 4; i++) {
-                    byte[] digest = md5(address + i);
-                    for (int h = 0; h < 4; h++) {
-                        long m = hash(digest, h);
-                        virtualInvokers.put(m, invoker);
+                for (int i = 0; i < replicaNumber / 4; i++) { // 每4个虚拟节点共用同一个地址进行hash
+                    // byte数组 128位
+                    byte[] digest = md5(address + i); // 简单理解: 有40个不同地址的节点 [有40个节点的hash 通过地址加index进行md5 hash]
+
+                    for (int h = 0; h < 4; h++) { // 每个地址hash结果为128位,分成0~31 32——63 64~95 96~127四部分
+                        long m = hash(digest, h); // 算出四部分每部分的hash值
+                        virtualInvokers.put(m, invoker); // 加入一致性hash表[注意不是环]
                     }
                 }
             }

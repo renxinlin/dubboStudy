@@ -136,6 +136,10 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
     private volatile List<Configurator> configurators; // The initial value is null and the midway may be assigned to null, please use the local variable reference
 
     // Map<url, Invoker> cache service url to invoker mapping.
+    /*
+    url---provider服务集合
+
+    * */
     private volatile Map<String, Invoker<T>> urlInvokerMap; // The initial value is null and the midway may be assigned to null, please use the local variable reference
     /**
      * 服务目录中存储了一些和服务提供者有关的信息，通过服务目录，服务消费者可获取到服务提供者的信息，比如 ip、端口、服务协议等。
@@ -289,7 +293,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
                 providerURLs = addressListener.notify(providerURLs, getConsumerUrl(),this);
             }
         }
-        // 刷新提供者信息
+        // 刷新overrideDirectoryUrl和 提供者信息
         refreshOverrideAndInvoker(providerURLs);
     }
 
@@ -455,7 +459,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
                 boolean accept = false;
                 String[] acceptProtocols = queryProtocols.split(",");
                 for (String acceptProtocol : acceptProtocols) {
-                    if (providerUrl.getProtocol().equals(acceptProtocol)) {
+                    if (providerUrl.getProtocol().equals(acceptProtocol)) {// g根据消费方协议配置过滤不匹配协议
                         accept = true;
                         break;
                     }
@@ -474,10 +478,10 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
                         ExtensionLoader.getExtensionLoader(Protocol.class).getSupportedExtensions()));
                 continue;
             }
-            URL url = mergeUrl(providerUrl);
+            URL url = mergeUrl(providerUrl);// 合并provider端配置数据  比如服务器ip端口等
 
             String key = url.toFullString(); // The parameter urls are sorted
-            if (keys.contains(key)) { // Repeated url
+            if (keys.contains(key)) { // Repeated url // 忽略重复推送的服务列表
                 continue;
             }
             keys.add(key);
@@ -493,7 +497,8 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
                         enabled = url.getParameter(ENABLED_KEY, true);
                     }
                     if (enabled) {
-                        // 构建dubbo invoker  dubboprotocol  其中dubboInvoker含有 数据转换ExchangeClient 以及通信层对象
+                        // 使用dubbo协议创建具有远程通信功能的Invoker
+                        // 构建dubbo invoker  dubborotocol  其中dubboInvoker含有 数据转换ExchangeClient 以及通信层对象
                         invoker = new InvokerDelegate<>(protocol.refer(serviceType, url), url, providerUrl);
                     }
                 } catch (Throwable t) {

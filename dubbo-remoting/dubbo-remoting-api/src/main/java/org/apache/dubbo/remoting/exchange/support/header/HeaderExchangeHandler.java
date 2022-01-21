@@ -57,6 +57,7 @@ public class HeaderExchangeHandler implements ChannelHandlerDelegate {
 
     static void handleResponse(Channel channel, Response response) throws RemotingException {
         if (response != null && !response.isHeartbeat()) {
+            // 通过id 交给 DefaultFuture完成请求响应
             DefaultFuture.received(channel, response);
         }
     }
@@ -168,16 +169,18 @@ public class HeaderExchangeHandler implements ChannelHandlerDelegate {
         if (message instanceof Request) {
             // handle request.
             Request request = (Request) message;
-            if (request.isEvent()) {
+            if (request.isEvent()) { // 处理readonly事件 用于优雅关机
                 handlerEvent(channel, request);
             } else {
                 if (request.isTwoWay()) {
+                    // 处理方法调用并返回客户端
                     handleRequest(exchangeChannel, request);
                 } else {
                     handler.received(exchangeChannel, request.getData());
                 }
             }
         } else if (message instanceof Response) {
+            // 接收响应
             handleResponse(channel, (Response) message);
         } else if (message instanceof String) {
             if (isClientSide(channel)) {

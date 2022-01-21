@@ -29,6 +29,7 @@ import static org.apache.dubbo.rpc.Constants.PROXY_KEY;
 public interface ProxyFactory {
 
     /**
+     * 消费端接口实现
      * create proxy.
      *
      * @param invoker
@@ -47,6 +48,7 @@ public interface ProxyFactory {
     <T> T getProxy(Invoker<T> invoker, boolean generic) throws RpcException;
 
     /**
+     * 服务端接口实现
      * create invoker.
      *
      * @param <T>

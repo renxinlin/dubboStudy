@@ -35,12 +35,13 @@ public class HeaderExchanger implements Exchanger {
     public static final String NAME = "header";
 
     @Override
-    public ExchangeClient connect(URL url, ExchangeHandler handler) throws RemotingException {
+    public ExchangeClient connect(URL url, ExchangeHandler handler/* DubboProtocol.ExchangeHandler */) throws RemotingException {
         return new HeaderExchangeClient(Transporters.connect(url, new DecodeHandler(new HeaderExchangeHandler(handler))), true);
     }
 
     @Override
-    public ExchangeServer bind(URL url, ExchangeHandler handler) throws RemotingException {
+    public ExchangeServer bind(URL url, ExchangeHandler handler/* DubboProtocol.ExchangeHandler*/) throws RemotingException {
+        //
         return new HeaderExchangeServer(Transporters.bind(url, new DecodeHandler(new HeaderExchangeHandler(handler))));
     }
 

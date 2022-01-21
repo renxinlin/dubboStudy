@@ -44,11 +44,19 @@ import static org.apache.dubbo.registry.Constants.REGISTRY_RETRY_PERIOD_KEY;
 
 /**
  * FailbackRegistry. (SPI, Prototype, ThreadSafe)
+ * 注册查询订阅通知的重试
  */
 public abstract class FailbackRegistry extends AbstractRegistry {
 
     /*  retry task map */
 
+    /*
+    Set failedRegistered                发起注册失败的URL集合
+    Set failedUnregistered              取消注册失败的URL集合
+    ConcurrentMap> failedSubscribed     发起订阅失败的监听器集合
+    ConcurrentMap> failedUnsubscribed   取消订阅失败的监听器集合
+    ConcurrentMap» failedNotified       通知失败的URL集合
+     */
     private final ConcurrentMap<URL, FailedRegisteredTask> failedRegistered = new ConcurrentHashMap<URL, FailedRegisteredTask>();
 
     private final ConcurrentMap<URL, FailedUnregisteredTask> failedUnregistered = new ConcurrentHashMap<URL, FailedUnregisteredTask>();
@@ -65,6 +73,7 @@ public abstract class FailbackRegistry extends AbstractRegistry {
     private final int retryPeriod;
 
     // Timer for failure retry, regular check if there is a request for failure, and if there is, an unlimited retry
+    // 在定时器中调用retry方法的时候，会把这五个集合分别遍历和重试，重试成功则从集合中移除 不成功会无限重试
     private final HashedWheelTimer retryTimer;
 
     public FailbackRegistry(URL url) {
@@ -72,6 +81,7 @@ public abstract class FailbackRegistry extends AbstractRegistry {
         this.retryPeriod = url.getParameter(REGISTRY_RETRY_PERIOD_KEY, DEFAULT_REGISTRY_RETRY_PERIOD);
 
         // since the retry task will not be very much. 128 ticks is enough.
+        // zk失败重连
         retryTimer = new HashedWheelTimer(new NamedThreadFactory("DubboRegistryRetryTimer", true), retryPeriod, TimeUnit.MILLISECONDS, 128);
     }
 

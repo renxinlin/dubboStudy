@@ -51,6 +51,7 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
         // Number of invokers
         int length = invokers.size();
         // The least active value of all invokers
+        // 所有调用者中最不活跃的值
         int leastActive = -1;
         // The number of invokers having the same least active value (leastActive)
         int leastCount = 0;
@@ -59,7 +60,9 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
         // the weight of every invokers
         int[] weights = new int[length];
         // The sum of the warmup weights of all the least active invokers
+        // 所有最不活跃的调用者的预热权重的总和
         int totalWeight = 0;
+        // 第一个最不活跃的调用者的权重
         // The weight of the first least active invoker
         int firstWeight = 0;
         // Every least active invoker has the same weight value?
@@ -70,8 +73,10 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
         for (int i = 0; i < length; i++) {
             Invoker<T> invoker = invokers.get(i);
             // Get the active number of the invoker
+            // 获取当前url下的方法对应的活跃数
             int active = RpcStatus.getStatus(invoker.getUrl(), invocation.getMethodName()).getActive();
             // Get the weight of the invoker's configuration. The default value is 100.
+            // 默认权重100,当启动时间小于预热时间[启动时间/预热时间]*100
             int afterWarmup = getWeight(invoker, invocation);
             // save for later use
             weights[i] = afterWarmup;
@@ -120,6 +125,7 @@ public class LeastActiveLoadBalance extends AbstractLoadBalance {
             }
         }
         // If all invokers have the same weight value or totalWeight=0, return evenly.
+        // 权重全部相同或者总权重为0
         return invokers.get(leastIndexes[ThreadLocalRandom.current().nextInt(leastCount)]);
     }
 }

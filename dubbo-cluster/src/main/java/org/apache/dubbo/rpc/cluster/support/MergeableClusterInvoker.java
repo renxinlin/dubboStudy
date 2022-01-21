@@ -59,6 +59,7 @@ public class MergeableClusterInvoker<T> extends AbstractClusterInvoker<T> {
     protected Result doInvoke(Invocation invocation, List<Invoker<T>> invokers, LoadBalance loadbalance) throws RpcException {
         checkInvokers(invokers, invocation);
         String merger = getUrl().getMethodParameter(invocation.getMethodName(), MERGER_KEY);
+        //如果不存在分组，则只调用一个即可
         if (ConfigUtils.isEmpty(merger)) { // If a method doesn't have a merger, only invoke one Group
             for (final Invoker<T> invoker : invokers) {
                 if (invoker.isAvailable()) {
@@ -73,6 +74,7 @@ public class MergeableClusterInvoker<T> extends AbstractClusterInvoker<T> {
                     }
                 }
             }
+            // 没有可用的则兜底
             return invokers.iterator().next().invoke(invocation);
         }
 
@@ -83,7 +85,7 @@ public class MergeableClusterInvoker<T> extends AbstractClusterInvoker<T> {
         } catch (NoSuchMethodException e) {
             returnType = null;
         }
-
+        //如果存在分组则调用所有的分组，将结果添加到results中
         Map<String, Result> results = new HashMap<>();
         for (final Invoker<T> invoker : invokers) {
             RpcInvocation subInvocation = new RpcInvocation(invocation, invoker);
@@ -91,8 +93,8 @@ public class MergeableClusterInvoker<T> extends AbstractClusterInvoker<T> {
             results.put(invoker.getUrl().getServiceKey(), invoker.invoke(subInvocation));
         }
 
+        //合并结果值
         Object result = null;
-
         List<Result> resultList = new ArrayList<Result>(results.size());
 
         for (Map.Entry<String, Result> entry : results.entrySet()) {

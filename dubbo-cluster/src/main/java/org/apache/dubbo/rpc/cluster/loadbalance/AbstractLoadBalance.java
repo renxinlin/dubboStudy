@@ -94,6 +94,7 @@ public abstract class AbstractLoadBalance implements LoadBalance {
                         return 1;
                     }
                     // 如果服务运行时间小于预热时间，则重新计算服务权重，即降权
+                    // warmup默认10分钟
                     int warmup = invoker.getUrl().getParameter(WARMUP_KEY, DEFAULT_WARMUP);
                     if (uptime > 0 && uptime < warmup) {
                         weight = calculateWarmupWeight((int)uptime, warmup, weight);

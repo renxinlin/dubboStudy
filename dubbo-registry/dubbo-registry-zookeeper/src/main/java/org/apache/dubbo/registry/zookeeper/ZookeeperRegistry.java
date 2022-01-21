@@ -76,6 +76,14 @@ public class ZookeeperRegistry extends FailbackRegistry {
      *
      *
      *
+     *URL 为provider信息或者消费者信息
+     * 例如:
+     * {URL@11233} "provider://192.168.82.94:18826/com.mockuai.ec.callcenter.client.service.OrderWarnLogClient?anyhost=true&application=ec-callcenter-web&bean.name=ServiceBean:com.mockuai.ec.callcenter.client.service.OrderWarnLogClient&bind.ip=192.168.82.94&bind.port=18826&category=configurators&check=false&delay=-1&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=com.mockuai.ec.callcenter.client.service.OrderWarnLogClient&methods=listExportOrderWarnLogV2,listExportOrderWarnLog,getOrderWarnLogByOrderSn&pid=33044&qos.enable=true&release=2.7.4.1&side=provider&timeout=3000&timestamp=1639372406918" -> {ConcurrentHashMap@12079}  size = 1
+     * {URL@12080} "consumer://192.168.82.94/com.mockuai.ec.governcenter.client.service.AbnormalOrderClientService?application=ec-callcenter-web&category=providers,configurators,routers&check=false&cluster=failfast&dubbo=2.0.2&interface=com.mockuai.ec.governcenter.client.service.AbnormalOrderClientService&lazy=false&methods=queryAbnormalOrderList,sendAbnormalOrderMsg,exportAbnormalOrderRecord&pid=33044&qos.enable=true&release=2.7.4.1&revision=1.0.8.9&side=consumer&sticky=false&timeout=3000&timestamp=1639372402781" -> {ConcurrentHashMap@12081}  size = 1
+     *
+     * val为对应的监听器
+     * OverrideListener ,ChildListener 服务端监听器 订阅  configurators
+     * RegistryDirectory,ChildListener  消费端监听器 订阅  provider router configurators
      *
      */
     private final ConcurrentMap<URL, ConcurrentMap<NotifyListener, ChildListener>> zkListeners = new ConcurrentHashMap<>();
@@ -83,6 +91,7 @@ public class ZookeeperRegistry extends FailbackRegistry {
     private final ZookeeperClient zkClient;
 
     public ZookeeperRegistry(URL url, ZookeeperTransporter zookeeperTransporter) {
+        // 设置zk的故障重连
         super(url);
         if (url.isAnyHost()) {
             throw new IllegalStateException("registry address == null");
@@ -92,6 +101,7 @@ public class ZookeeperRegistry extends FailbackRegistry {
             group = PATH_SEPARATOR + group;
         }
         this.root = group;
+        // 连接zk
         zkClient = zookeeperTransporter.connect(url);
         zkClient.addStateListener((state) -> {
             if (state == StateListener.RECONNECTED) {

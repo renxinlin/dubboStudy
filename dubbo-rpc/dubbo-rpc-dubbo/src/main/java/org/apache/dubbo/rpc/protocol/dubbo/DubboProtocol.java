@@ -335,7 +335,7 @@ public class DubboProtocol extends AbstractProtocol {
         }
     }
 
-    private ProtocolServer createServer(URL url) {
+        private ProtocolServer createServer(URL url) {
         // 默认开启 Server 关闭时，发送 READ_ONLY 事件。
         // 第 7 行：默认开启心跳功能。
         url = URLBuilder.from(url)
@@ -472,6 +472,7 @@ public class DubboProtocol extends AbstractProtocol {
         List<ReferenceCountExchangeClient> clients = referenceClientMap.get(key);
 
         if (checkClientCanUse(clients)) {
+            //  每个Invoker引用时候会增加客户端连接数 当客户端连接数<=0 可能会触发close
             batchClientRefIncr(clients);
             return clients;
         }
@@ -479,7 +480,7 @@ public class DubboProtocol extends AbstractProtocol {
         locks.putIfAbsent(key, new Object());
         synchronized (locks.get(key)) {
             clients = referenceClientMap.get(key);
-            // dubbo check
+            // 二次检查
             if (checkClientCanUse(clients)) {
                 batchClientRefIncr(clients);
                 return clients;
@@ -605,7 +606,7 @@ public class DubboProtocol extends AbstractProtocol {
 
         ExchangeClient client;
         try {
-            // connection should be lazy
+            // connection should be lazy 是否懒连接
             if (url.getParameter(LAZY_CONNECT_KEY, false)) {
                 client = new LazyConnectExchangeClient(url, requestHandler);
 

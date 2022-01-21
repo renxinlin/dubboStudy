@@ -133,7 +133,7 @@ public @interface Reference {
     int connections() default 0;
 
     /**
-     * The callback instance limit peer connection
+     *
      * <p>
      * see org.apache.dubbo.rpc.Constants#DEFAULT_CALLBACK_INSTANCES
      */

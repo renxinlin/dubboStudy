@@ -116,11 +116,56 @@ public abstract class Wrapper {
         return WRAPPER_MAP.computeIfAbsent(c, key -> makeWrapper(key));
     }
 
+    /*
+        以下为构建的一个wrapper类的字符串源码,其中$w $0 这些为javassist的语法特性
+        Wrapper生成的类名为Wrapper0,Wrapper1...Wrappern
+        生成的wrapper类最重要的方法是invokeMethod(代理对象,方法名,方法参数类型合集,方法参数合集)
+        通过这样的方式,我们提前编译处理方法名到目标方法的执行,避免运行时通过反射调用,提高性能
+     */
     private static Wrapper makeWrapper(Class<?> c) {
         if (c.isPrimitive()) {
             throw new IllegalArgumentException("Can not create wrapper for primitive type: " + c);
         }
+        /*
+                @see: javassist 官方文档 http://www.javassist.org/tutorial/tutorial2.html#intro
 
+                javassist语法介绍:
+                知识点一:$w 用于包装类型强转
+                $w表示包装器类型。它必须用作强制转换表达式中的强制转换类型。 ($w)从原始类型转换为相应的包装器类型。以下代码是一个示例：
+                Integer i = ($w)5;
+                选择的包装器类型取决于后面的表达式的类型($w)。如果表达式的类型是 double，那么包装器类型是java.lang.Double。
+                如果后面的表达式的类型($w)不是原始类型，则($w)什么也不做。
+
+                知识点二:$0, $1, $2, ...
+                传递给目标方法的参数可以使用$1, $2, ... 来访问 ，而不是原始参数名称。 $1代表第一个参数，$2代表第二个参数，以此类推。这些变量的类型与参数类型相同。 $0相当于this。
+                如果方法是静态的， $0则不可用
+                这些变量的使用如下。假设一个类 Point：
+                class Point {
+                    int x, y;
+                    void move(int dx, int dy) { x += dx; y += dy; }
+                }
+
+                假设每次调用move时,有需要输出dx和dy的需求,请执行以下程序：
+                ClassPool pool = ClassPool.getDefault();
+                CtClass cc = pool.get("Point");
+                CtMethod m = cc.getDeclaredMethod("move");
+                m.insertBefore("{ System.out.println($1); System.out.println($2); }");   // $1表示move方法第一个参数dx $2表示move方法第一个参数dy
+                cc.writeFile();
+
+                请注意，传递给insertBefore方法的源码要用大括号括起来,insertBefore只接受单个语句或用大括号括起来的代码块
+                Point修改后类的定义是这样的：
+                class Point {
+                    int x, y;
+                    void move(int dx, int dy) {
+                        { System.out.println(dx); System.out.println(dy); }
+                        x += dx; y += dy;
+                    }
+                }
+                $1和$2分别替换为 dx和dy。
+                $1, $2, $3... 是可更新的。如果将新值分配给这些变量之一，则该变量表示的参数的值也会更新。
+
+                参见文末构建的字符串源码
+         */
         String name = c.getName();
         ClassLoader cl = ClassUtils.getClassLoader(c);
 
@@ -451,3 +496,69 @@ public abstract class Wrapper {
      */
     abstract public Object invokeMethod(Object instance, String mn, Class<?>[] types, Object[] args) throws NoSuchMethodException, InvocationTargetException;
 }
+
+
+/*
+public class Wrapper0 extends Wrapper {
+    public static String[] pns; // 属性名数组 property name array.
+    public static Map pts;      // property type map. 属性类型集合
+    public static String[] mns; // all method name array. 所有方法名合集
+    public static String[] dmns;//  declared method name array. 声明的方法名合集
+
+    // 表示每个方法的参数数组的类型 method type
+    public static Class[] mts0;
+    public static Class[] mts1;
+    //   ......
+    public static Class[] mtsn;
+
+    public String[] getPropertyNames(){ return pns; }
+    public boolean hasProperty(String n){ return pts.containsKey($1); }
+
+    public Class getPropertyType(String n){ return (Class)pts.get($1); }
+    public String[] getMethodNames(){ return mns; }
+    public String[] getDeclaredMethodNames(){ return dmns; }
+
+
+
+
+    public void setPropertyValue(Object o, String n, Object v) {
+        com.mockuai.ec.deliverycenter.common.api.DeliveryService w;
+        try {
+            w = ((com.mockuai.ec.deliverycenter.common.api.DeliveryService) $1);
+        } catch (Throwable e) {
+            throw new IllegalArgumentException(e);
+        }
+        throw new org.apache.dubbo.common.bytecode.NoSuchPropertyException("Not found property \"" + $2 + "\" field or setter method in class com.mockuai.ec.deliverycenter.common.api.DeliveryService.");
+    }
+
+
+    public Object getPropertyValue(Object o, String n) {
+        com.mockuai.ec.deliverycenter.common.api.DeliveryService w;
+        try {
+            w = ((com.mockuai.ec.deliverycenter.common.api.DeliveryService) $1);
+        } catch (Throwable e) {
+            throw new IllegalArgumentException(e);
+        }
+        throw new org.apache.dubbo.common.bytecode.NoSuchPropertyException("Not found property \"" + $2 + "\" field or setter method in class com.mockuai.ec.deliverycenter.common.api.DeliveryService.");
+    }
+
+
+    public Object invokeMethod(Object o, String n, Class[] p, Object[] v) throws java.lang.reflect.InvocaionTargetException {
+        com.mockuai.ec.deliverycenter.common.api.DeliveryService w;
+        try {
+            w = ((com.mockuai.ec.deliverycenter.common.api.DeliveryService) $1);
+        } catch (Throwable e) {
+            throw new IllegalArgumentException(e);
+        }
+        try {
+
+            if ("exportDeliveryInfoStatusDTOList".equals($2) && $3.length == 2) {
+                return ($w) w.exportDeliveryInfoStatusDTOList((com.mockuai.ec.deliverycenter.common.domain.qto.DeliveryAbnormalStatusInfoQTO) $4[0], (com.mockuai.ec.deliverycenter.common.api.helper.CallerInfo) $4[1]);
+            }
+        } catch (Throwable e) {
+            throw new java.lang.reflect.InvocationTargetException(e);
+        }
+        throw new org.apache.dubbo.common.bytecode.NoSuchMethodException("Not found method \"" + $2 + "\" in class com.mockuai.ec.deliverycenter.common.api.DeliveryService.");
+    }
+}
+ */

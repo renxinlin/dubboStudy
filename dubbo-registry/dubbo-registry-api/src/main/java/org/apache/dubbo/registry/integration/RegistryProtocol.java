@@ -127,6 +127,10 @@ public class RegistryProtocol implements Protocol {
     };
 
     private final static Logger logger = LoggerFactory.getLogger(RegistryProtocol.class);
+    /*
+     provider 对应的listener
+    *
+    * */
     private final Map<URL, NotifyListener> overrideListeners = new ConcurrentHashMap<>();
     private final Map<String, ServiceConfigurationListener> serviceConfigurationListeners = new ConcurrentHashMap<>();
     private final ProviderConfigurationListener providerConfigurationListener = new ProviderConfigurationListener();
@@ -191,30 +195,30 @@ public class RegistryProtocol implements Protocol {
 
     @Override
     public <T> Exporter<T> export(final Invoker<T> originInvoker) throws RpcException {
-        // 获得注册中心 URL
+        // 获得注册中心 URL 将register协议替换成具体协议,比如zookeeper://
         // zookeeper://127.0.0.1:2181/org.apache.dubbo.registry.RegistryService?application=demo-provider&dubbo=2.0.2
         // &export=dubbo://192.168.111.223:20880/org.apache.dubbo.demo.DemoService?anyhost=true&application=demo-provider&bind.ip=192.168.111.223&bind.port=20880&delay=1&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=org.apache.dubbo.demo.DemoService&metadata-type=remote&methods=sayHello,sayHelloAsync&pid=19409&qos.port=22222&release=&side=provider&timestamp=1612529550788&metadata-type=remote&pid=19409&qos.port=22222&timestamp=1612529545776
         URL registryUrl = getRegistryUrl(originInvoker);
         // url to export locally
-        // 获得服务提供者 URL
+        // 获得通过servicebean赋值在export参数上的url 服务提供者 URL
         //         dubbo://192.168.111.223:20880/org.apache.dubbo.demo.DemoService?anyhost=true&application=demo-provider&bind.ip=192.168.111.223&bind.port=20880&delay=1&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=org.apache.dubbo.demo.DemoService&metadata-type=remote&methods=sayHello,sayHelloAsync&pid=19409&qos.port=22222&release=&side=provider&timestamp=1612529550788
         URL providerUrl = getProviderUrl(originInvoker);
 
         // Subscribe the override data
-        // FIXME When the provider subscribes, it will affect the scene : a certain JVM exposes the service and call
-        //  the same service. Because the subscribed is cached key with the name of the service, it causes the
-        //  subscription information to cover.
+        // 设置协议为overrid category为configurators
         final URL overrideSubscribeUrl = getSubscribedOverrideUrl(providerUrl);
-        // 使用 OverrideListener 对象，订阅配置规则
+        // 使用 OverrideListener 对象，订阅配置 category=configurators 规则
+        // provider://192.168.82.94:19012/com.renxl.demo.DYOmsClient?anyhost=true&application=renxlApplication&bean.name=ServiceBean:com.renxl.demo.DYOmsClient&bind.ip=192.168.82.94&bind.port=19012&category=configurators&check=false&delay=-1&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=com.renxl.demo.DYOmsClient&methods=renxlmethod&pid=39115&qos.enable=false&release=2.7.4.1&side=provider&timeout=3000&timestamp=1641978804642
         final OverrideListener overrideSubscribeListener = new OverrideListener(overrideSubscribeUrl, originInvoker);
         overrideListeners.put(overrideSubscribeUrl, overrideSubscribeListener);
+
         providerUrl = overrideUrlWithConfig(providerUrl, overrideSubscribeListener);
 
         //export invoker
-        //  // step-1: 暴露服务
+        //  // step-1: 交由dubboProtocol 暴露服务 构建exporter 创建netty
         final ExporterChangeableWrapper<T> exporter = doLocalExport(originInvoker, providerUrl);
 
-        // url to registry
+        // url to registry step-2: 获取注册中心封装了zkClient
         final Registry registry = getRegistry(originInvoker);
         // 移除provider url中不需要的key  这个在provider中并不提供功能
         final URL registeredProviderUrl = getUrlToRegistry(providerUrl, registryUrl);
@@ -222,8 +226,8 @@ public class RegistryProtocol implements Protocol {
         // decide if we need to delay publish
         boolean register = providerUrl.getParameter(REGISTER_KEY, true);
         if (register) {
-            // // step-2: 向注册中心注册服务提供者（自己）
-            // 第一步获取注册中心实例，第二步是向注册中心注册服务
+            // // step-3: 向注册中心注册服务提供者（自己）
+            // 第一步获取注册中心实例，第二步是向注册中心注册服务 注册Provider信息
             register(registryUrl, registeredProviderUrl);
         }
 
@@ -233,10 +237,25 @@ public class RegistryProtocol implements Protocol {
 
         exporter.setRegisterUrl(registeredProviderUrl);
         exporter.setSubscribeUrl(overrideSubscribeUrl);
-        // step-3: 订阅 override 数据
+        // step-4: 订阅 override 数据
         // Deprecated! Subscribe to override rules in 2.6.x or before.
+        /*
+            创建节点 注册监听器  通知：notifyOverrideListener registryDirectory
+
+         */
         registry.subscribe(overrideSubscribeUrl, overrideSubscribeListener);
 
+
+        /*
+                            /dubbo
+                                   /interface
+            Providers 目录下面，存放服务提供者 URL 和元数据。
+            Consumers 目录下面，存放消费者的 URL 和元数据。
+            Routers 目录下面，存放消费者的路由策略。
+            Configurators 目录下面，存放多个用于服务提供者动态配置 URL 元数据信息
+         */
+        // 监听器 这不是zk那个监听变更 这是一个观察监听设计模式 一般暂无实现
+        //
         notifyExport(exporter);
         //Ensure that a new exporter instance is returned every time export
         return new DestroyableExporter<>(exporter);
@@ -368,12 +387,15 @@ public class RegistryProtocol implements Protocol {
      */
     protected Registry getRegistry(final Invoker<?> originInvoker) {
         URL registryUrl = getRegistryUrl(originInvoker);
+        // registryFactory$Adaptive  zookeeper
         return registryFactory.getRegistry(registryUrl);
     }
 
     protected URL getRegistryUrl(Invoker<?> originInvoker) {
         URL registryUrl = originInvoker.getUrl();
+//        判断当前url使用什么协议 注册协议进入
         if (REGISTRY_PROTOCOL.equals(registryUrl.getProtocol())) {
+//            通过参数registry的值设置真正要注册哪种注册协议 一般zookeeper
             String protocol = registryUrl.getParameter(REGISTRY_KEY, DEFAULT_REGISTRY);
             registryUrl = registryUrl.setProtocol(protocol).removeParameter(REGISTRY_KEY);
         }
@@ -460,6 +482,24 @@ public class RegistryProtocol implements Protocol {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Invoker<T> refer(Class<T> type, URL url) throws RpcException {
+        //zookeeper://dev.zk.mockuai.com:2181/org.apache.dubbo.registry.RegistryService?application=ec-omscenter-admin&dubbo=2.0.2&pid=54433&qos.enable=false&refer=application%3Dec-omscenter-admin%26check%3Dfalse%26cluster%3Dfailfast%26dubbo%3D2.0.2%26interface%3Dcom.mockuai.ec.deliverycenter.common.api.DeliveryService%26lazy%3Dfalse%26methods%3DaddPackages%2CaddGeneralExcelDelivery%2CaddDeliveryPackages%2CexportDeliveryInfoStatusDTOList%2CgetDeliveryRegionByName%2CgetDeliveryInfoDetail%2CupdateDeliveryInfo%2CqueryDeliveryInfoListByOrderId%2CgetDeliveryImportLogCount%2CbGetDeliveryInfoById%2CaddErpDeliveryInfo%2CqueryDeliveryRegionNew%2ClistDeliveryInfoById%2CqueryDeliveryInfoByExpressNo%2CcQueryPackagesIds%2CqueryLogisticsCompany%2CupdateGeneralExcelDelivery%2CupdateDeliveryPackages%2CaQueryKsRelExpressInfo%2CqueryPackages%2CqueryDeliveryImportLog%2CbQueryPackagesRealLogistics%2CupdateDeliveryInfoByExpressNo%2CaGetDeliveryInfoById%2CqueryDeliveryInfoByIds%2CupdatePackages%2CmgetDeliveryLogistcisInfo%2CcGetDeliveryInfoById%2CqueryLogisticsCompanyHasCache%2CaddDeliveryInfo%2CgetDeliveryInfoById%2CaddImportFileLog%2CaQueryPackagesIds%2CaQueryPackages%2CgetDeliveryInfoByExpressNo%2CqueryLogisticsCompanyTemplate%2CqueryDeliveryRegion%2CbQueryPackages%2CqueryDeliveryInfo%2CqueryDeliveryInfoByExpressNoV2%2CcQueryPackages%26pid%3D54433%26qos.enable%3Dfalse%26register.ip%3D192.168.2.103%26release%3D2.7.4.1%26revision%3D2.0.6%26side%3Dconsumer%26sticky%3Dfalse%26timeout%3D3000%26timestamp%3D1642246833742&release=2.7.4.1&timestamp=1642248195560
+        /*
+        protocol = "zookeeper"
+        username = null
+        password = null
+        host = "dev.zk.mockuai.com"
+        port = 2181
+        path = "org.apache.dubbo.registry.RegistryService"
+        parameters = {Collections$UnmodifiableMap@13226}
+         "application" -> "ec-omscenter-admin"
+         "refer" -> "application%3Dec-omscenter-admin%26check%3Dfalse%26cluster%3Dfailfast%26dubbo%3D2.0.2%26interface%3Dcom.mockuai.ec.deliverycenter.common.api.DeliveryService%26lazy%3Dfalse%26methods%3DaddPackages%2CaddGeneralExcelDelivery%2CaddDeliveryPackages%2CexportDeliveryInfoStatusDTOList%2CgetDeliveryRegionByName%2CgetDeliveryInfoDetail%2CupdateDeliveryInfo%2CqueryDeliveryInfoListByOrderId%2CgetDeliveryImportLogCount%2CbGetDeliveryInfoById%2CaddErpDeliveryInfo%2CqueryDeliveryRegionNew%2ClistDeliveryInfoById%2CqueryDeliveryInfoByExpressNo%2CcQueryPackagesIds%2CqueryLogisticsCompany%2CupdateGeneralExcelDelivery%2CupdateDeliveryPackages%2CaQueryKsRelExpressInfo%2CqueryPackages%2CqueryDeliveryImportLog%2CbQueryPackagesRealLogistics%2CupdateDeliveryInfoByExpressNo%2CaGetDeliveryInfoById%2CqueryDeliveryInfoByIds%2CupdatePackages%2CmgetDeliveryLogistcisInfo%2CcGetDeliveryInfoById%2CqueryLogisticsCompanyHasCache%2CaddDeliveryInfo%2CgetDeliveryInfoById%2CaddImportFileLog%2CaQueryPackagesIds%2CaQueryPackag"
+         "release" -> "2.7.4.1"
+         "dubbo" -> "2.0.2"
+         "pid" -> "54433"
+         "qos.enable" -> "false"
+         "timestamp" -> "1642248195560"
+
+         */
         url = getRegistryUrl(url);
         // 根据url获取注册中心 比如zookeeper注册中心[其内部持有与zk server交互的client对象]
         Registry registry = registryFactory.getRegistry(url);
@@ -472,7 +512,7 @@ public class RegistryProtocol implements Protocol {
         String group = qs.get(GROUP_KEY);
         // 多个组
         if (group != null && group.length() > 0) {
-            if ((COMMA_SPLIT_PATTERN.split(group)).length > 1 || "*".equals(group)) {
+            if ((COMMA_SPLIT_PATTERN.split(group)).length > 1 || "*".equals(group)) { // group = "group1,group2"
                 return doRefer(Cluster.getCluster(MergeableCluster.NAME), registry, type, url);
             }
         }
@@ -520,11 +560,11 @@ public class RegistryProtocol implements Protocol {
         ////////////////////////////////////
         //     // 订阅 providers、configurators、routers 等节点数据 notify 会重新刷新provider 调用dubboProtocol
         ////////////////////////////////////////////////////////////////////////////////////////////////
-        // 该directory 内部含有dubboInvoker 对象
+        // 该directory 内部含有dubboInvoker 对象 第一次订阅会触发全量拉取触发RegisterDirectory的notify 从而触发dubbo协议构建Invoker到directory
         directory.subscribe(toSubscribeUrl(subscribeUrl));
 
         // 创建 Invoker 对象
-        //     // 一个注册中心可能有多个服务提供者，因此这里需要将多个服务提供者合并为一个
+        //     // 一个注册中心可能有多个服务提供者，因此这里需要将多个服务提供者合并为一个 默认failover集群
         Invoker<T> invoker = cluster.join(directory);
         List<RegistryProtocolListener> listeners = findRegistryProtocolListeners(url);
         if (CollectionUtils.isEmpty(listeners)) {

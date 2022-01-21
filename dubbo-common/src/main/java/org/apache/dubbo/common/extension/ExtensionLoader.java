@@ -82,6 +82,7 @@ import static org.apache.dubbo.common.constants.CommonConstants.REMOVE_VALUE_PRE
  * @see org.apache.dubbo.common.extension.Activate
  */
 public class ExtensionLoader<T> {
+    // 特点: 自适应  自动装载  自动包装  自动激活(某个扩展点的多个实现类需要被同时使用)
 
     private static final Logger logger = LoggerFactory.getLogger(ExtensionLoader.class);
     // 按照逗号分离
@@ -108,6 +109,7 @@ public class ExtensionLoader<T> {
      33:  */
     private final Class<?> type;
     /**
+     *     用于协助setter方式依赖注入
      36:  * 对象工厂
      37:  *
      38:  * 用于调用 {@link #injectExtension(Object)} 方法，向拓展对象注入依赖属性。

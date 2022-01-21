@@ -86,6 +86,11 @@ public abstract class AbstractRegistry implements Registry {
     // Log output
     protected final Logger logger = LoggerFactory.getLogger(getClass());
     // Local disk cache, where the special key value.registries records the list of registry centers, and the others are the list of notified service providers
+    /*
+        Properties保存了所有服务提供者的URL,使用URL#serviceKey()作为key,提供者列表、路由规则列表、配置规则列表等作为value。
+        由于value是列表，当存在多个的时候使用空格隔开。还有一个特殊的key.registies,保存所有的注册中心的地址。如果应用在启动过程中，
+        注册中心无法连接或宕机，则Dubbo框架会自动通过本地缓存加载Invokers
+     */
     private final Properties properties = new Properties();
     // File cache timing writing
     private final ExecutorService registryCacheExecutor = Executors.newFixedThreadPool(1, new NamedThreadFactory("DubboSaveRegistryCache", true));
@@ -93,11 +98,42 @@ public abstract class AbstractRegistry implements Registry {
     private boolean syncSaveFile;
     private final AtomicLong lastCacheChanged = new AtomicLong();
     private final AtomicInteger savePropertiesRetryTimes = new AtomicInteger();
+
+    /* 注册的dubbo 服务 集合
+    消费端
+    {URL@12204} "consumer://192.168.82.94/com.mockuai.ec.governcenter.client.service.ReportClientService?application=ec-callcenter-web&category=consumers&check=false&cluster=failfast&dubbo=2.0.2&interface=com.mockuai.ec.governcenter.client.service.ReportClientService&lazy=false&methods=editReportFilterRule,deleteReportFilterRule,queryWhiteList,queryReportRecordList,auditReportRecord,deleteReportOrderRecord,addReportFilterRule,getReportRecordDetail,addReportWhiteLis,queryReportFilterRuleList,exportFailReportOrderList,querySpecialTypeReportOrder,exportReportOrderList,deleteReportWhiteList,sendReportOrderSms,addReportOrderRemark,queryReportOrderList,auditReportOrder,getReportReasonList&pid=33044&qos.enable=true&release=2.7.4.1&revision=1.0.8.9&side=consumer&sticky=false&timeout=3000&timestamp=1639372401957"
+    服务端
+    {URL@11263} "dubbo://192.168.82.94:18826/com.mockuai.ec.callcenter.client.service.OrderWarnLogClient?anyhost=true&application=ec-callcenter-web&bean.name=ServiceBean:com.mockuai.ec.callcenter.client.service.OrderWarnLogClient&delay=-1&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=com.mockuai.ec.callcenter.client.service.OrderWarnLogClient&methods=listExportOrderWarnLogV2,listExportOrderWarnLog,getOrderWarnLogByOrderSn&pid=33044&release=2.7.4.1&side=provider&timeout=3000&timestamp=1639372406918"
+    * */
     private final Set<URL> registered = new ConcurrentHashSet<>();
+    /*
+            url对应的监听器
+            订阅信息
+            key是消费者或者提供者
+            key = {URL@11233} "provider://192.168.82.94:18826/com.mockuai.ec.callcenter.client.service.OrderWarnLogClient?anyhost=true&application=ec-callcenter-web&bean.name=ServiceBean:com.mockuai.ec.callcenter.client.service.OrderWarnLogClient&bind.ip=192.168.82.94&bind.port=18826&category=configurators&check=false&delay=-1&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=com.mockuai.ec.callcenter.client.service.OrderWarnLogClient&methods=listExportOrderWarnLogV2,listExportOrderWarnLog,getOrderWarnLogByOrderSn&pid=33044&qos.enable=true&release=2.7.4.1&side=provider&timeout=3000&timestamp=1639372406918"
+            RegistryProtocol$OverrideListener
+
+            key = {URL@12080} "consumer://192.168.82.94/com.mockuai.ec.governcenter.client.service.AbnormalOrderClientService?application=ec-callcenter-web&category=providers,configurators,routers&check=false&cluster=failfast&dubbo=2.0.2&interface=com.mockuai.ec.governcenter.client.service.AbnormalOrderClientService&lazy=false&methods=queryAbnormalOrderList,sendAbnormalOrderMsg,exportAbnormalOrderRecord&pid=33044&qos.enable=true&release=2.7.4.1&revision=1.0.8.9&side=consumer&sticky=false&timeout=3000&timestamp=1639372402781"
+            RegistryDirectory@12120
+    */
     private final ConcurrentMap<URL, Set<NotifyListener>> subscribed = new ConcurrentHashMap<>();
+    /*
+
+        // todo 缓存合集 无需次次拉取zk等注册中心
+        url对应的订阅的子url
+        key是消费者或者提供者
+        key = {URL@11233} "provider://192.168.82.94:18826/com.mockuai.ec.callcenter.client.service.OrderWarnLogClient?anyhost=true&application=ec-callcenter-web&bean.name=ServiceBean:com.mockuai.ec.callcenter.client.service.OrderWarnLogClient&bind.ip=192.168.82.94&bind.port=18826&category=configurators&check=false&delay=-1&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=com.mockuai.ec.callcenter.client.service.OrderWarnLogClient&methods=listExportOrderWarnLogV2,listExportOrderWarnLog,getOrderWarnLogByOrderSn&pid=33044&qos.enable=true&release=2.7.4.1&side=provider&timeout=3000&timestamp=1639372406918"
+                val  的key 为category分类 provider为configurators  也就是说这个提供者所具备的一些配置信息
+        //
+        key = {URL@12077} "consumer://192.168.82.94/com.mockuai.ec.authcenter.client.service.IpCheckClient?application=ec-callcenter-web&category=providers,configurators,routers&check=false&cluster=failfast&dubbo=2.0.2&interface=com.mockuai.ec.authcenter.client.service.IpCheckClient&lazy=false&methods=ipCheck&pid=33044&qos.enable=true&release=2.7.4.1&revision=1.3.2&side=consumer&sticky=false&timeout=3000&timestamp=1639372405300"
+        val  的key 为category分类  consumer为 configurators routers providers
+        其中 configurators 只消费者具有的一些配置信息
+        routers指消费者具有的一些路由信息比如tagRouter,conditionRouter,ScriptRouter providers一般这提供者,一般提供者有多少这里的list就有多大
+
+     */
     private final ConcurrentMap<URL, Map<String, List<URL>>> notified = new ConcurrentHashMap<>();
     private URL registryUrl;
-    // Local disk cache file
+    // Local disk cache file   // todo 缓存合集的持久化
     private File file;
 
     public AbstractRegistry(URL url) {

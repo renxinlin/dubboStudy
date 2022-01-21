@@ -36,7 +36,9 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.xml.NamespaceHandlerSupport;
 import org.springframework.beans.factory.xml.ParserContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigUtils;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
 import org.w3c.dom.Element;
 
 import static org.apache.dubbo.config.spring.util.DubboBeanUtils.registerCommonBeans;
@@ -93,6 +95,7 @@ public class DubboNamespaceHandler extends NamespaceHandlerSupport implements Co
         setSource(beanDefinition);
         return beanDefinition;
     }
+
 
     /**
      * Register the processors for the Spring Annotation-Driven features

@@ -95,6 +95,9 @@ public class NettyClientHandler extends ChannelDuplexHandler {
         promise.addListener(future -> {
             if (future.isSuccess()) {
                 // if our future is success, mark the future to sent.
+                // msg是  Request[RpcInvocation]
+                // 整个NettyClientHandler.sent 链式处理并无特别操作,只是简单的给
+                // channel是nettyChannel [持有nioSocketChannel,NettyClient]
                 handler.sent(channel, msg);
                 return;
             }

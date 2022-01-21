@@ -952,6 +952,7 @@ class URL implements Serializable {
     }
 
     private Number getCachedNumber(String method, String key) {
+                                        /* 方法名 , 配置key-配置val*/
         Map<String, Number> keyNumber = getMethodNumbers().get(method);
         if (keyNumber != null) {
             return keyNumber.get(key);

@@ -331,6 +331,23 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
     }
 
     /**
+     *  "cluster" -> "failfast"
+     *  "side" -> "consumer"
+     *  "register.ip" -> "192.168.2.103"
+     *  "release" -> "2.7.4.1"
+     *  "methods" -> "addPackages,addGeneralExcelDelivery,addDeliveryPackages,exportDeliveryInfoStatusDTOList,getDeliveryRegionByName,getDeliveryInfoDetail,updateDeliveryInfo,queryDeliveryInfoListByOrderId,getDeliveryImportLogCount,bGetDeliveryInfoById,addErpDeliveryInfo,queryDeliveryRegionNew,listDeliveryInfoById,queryDeliveryInfoByExpressNo,cQueryPackagesIds,queryLogisticsCompany,updateGeneralExcelDelivery,updateDeliveryPackages,aQueryKsRelExpressInfo,queryPackages,queryDeliveryImportLog,bQueryPackagesRealLogistics,updateDeliveryInfoByExpressNo,aGetDeliveryInfoById,queryDeliveryInfoByIds,updatePackages,mgetDeliveryLogistcisInfo,cGetDeliveryInfoById,queryLogisticsCompanyHasCache,addDeliveryInfo,getDeliveryInfoById,addImportFileLog,aQueryPackagesIds,aQueryPackages,getDeliveryInfoByExpressNo,queryLogisticsCompanyTemplate,queryDeliveryRegion,bQueryPackages,queryDeliveryInfo,queryDeliveryInfoByExpressNoV2,cQueryPackages"
+     *  "lazy" -> "false"
+     *  "dubbo" -> "2.0.2"
+     *  "pid" -> "54433"
+     *  "check" -> "false"
+     *  "interface" -> "com.mockuai.ec.deliverycenter.common.api.DeliveryService"
+     *  "qos.enable" -> "false"
+     *  "timeout" -> "3000"
+     *  "revision" -> "2.0.6"
+     *  "application" -> "ec-omscenter-admin"
+     *  "sticky" -> "false"
+     *  "timestamp" -> "1642246833742"
+     *
      * 该方法还会调用其他方法构建以及合并 Invoker 实例
      * @param map
      * @return
@@ -338,7 +355,9 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
     @SuppressWarnings({"unchecked", "rawtypes", "deprecation"})
     private T createProxy(Map<String, String> map) {
         // local
+        // step-1: 构建injvmInvoker
         if (shouldJvmRefer(map)) {
+            // injvm://127.0.0.1/com.mockuai.ec.deliverycenter.common.api.DeliveryService?application=ec-omscenter-admin&check=false&cluster=failfast&dubbo=2.0.2&interface=com.mockuai.ec.deliverycenter.common.api.DeliveryService&lazy=false&methods=addPackages,getDeliveryRegionByName,cQueryPackages&pid=54433&qos.enable=false&register.ip=192.168.2.103&release=2.7.4.1&revision=2.0.6&side=consumer&sticky=false&timeout=3000&timestamp=1642246833742
             URL url = new URL(LOCAL_PROTOCOL, LOCALHOST_VALUE, 0, interfaceClass.getName()).addParameters(map);
             // 引用服务，返回 Invoker 对象  InJvmProtocol 构建本地Invoker
             invoker = REF_PROTOCOL.refer(interfaceClass, url);
@@ -347,10 +366,10 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
             }
         } else {
             // remote
-            urls.clear();
-
+            urls.clear(); // 表示直连地址和多注册中心集合
+            // step-2.1 直连url或者注册url构建urls
             /// 直连地址，可以是服务提供者的地址|也可以是服务暴露地址
-            // <dubbo:reference id="xxxService" interface="com.alibaba.xxx.XxxService" url="dubbo://localhost:20890" />
+            // 如果我们配置了url 属性 说明进行直连 <dubbo:reference id="xxxService" interface="com.alibaba.xxx.XxxService" url="dubbo://localhost:20890" />
             if (url != null && url.length() > 0) { // user specified URL, could be peer-to-peer address, or register center's address.
                 String[] us = SEMICOLON_SPLIT_PATTERN.split(url);
                 if (us != null && us.length > 0) {
@@ -370,12 +389,13 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
                     }
                 }
             } else {
-                // 注册中心 一般注册中心走这个
+                // 获取配置的注册中心地址 一般注册中心走这个
                 // assemble URL from register center's configuration
                 // if protocols not injvm checkRegistry
+                // step-2.2注册url构建urls
                 if (!LOCAL_PROTOCOL.equalsIgnoreCase(getProtocol())) {
                     checkRegistry();
-                    // 这里是获取RegisterConfig url 也就是注册中心地址
+                    // 这里是获取应用配置的注册信息 RegisterConfig url 也就是注册中心地址
 //                    registry://dev.zk.mockuai.com:2181/com.alibaba.dubbo.registry.RegistryService?application=ec-shopcenter-web&dubbo=2.0.2&pid=35924&qos.enable=false&registry=zookeeper&timestamp=1612807797988
                     List<URL> us = ConfigValidationUtils.loadRegistries(this, false);
                     if (CollectionUtils.isNotEmpty(us)) {
