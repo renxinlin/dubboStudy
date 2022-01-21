@@ -23,7 +23,7 @@
        default-autowire="byName">
 
     <dubbo:application name="customize-parameter"/>
-    envoy
+    
     <dubbo:registry address="N/A" id="naRegistry"/>
 
     <dubbo:protocol p:protocol-paramA="protocol-paramA"/>
